@@ -1,0 +1,26 @@
+# electron-builder configuration for the desktop shell. The dsh installation is
+# staged by scripts/package.mjs into out/dsh (a `pnpm deploy --legacy --prod` of
+# @deepseek-ai/dsh, peer-injected and flattened — see that script) and carried
+# as resources/dsh in the packaged app.
+appId: ai.deepseek.harness.desktop
+productName: DeepSeek Harness
+directories:
+  output: dist
+files:
+  - src/**/*
+  - package.json
+# Two entries because electron-builder's copy filter unconditionally drops a
+# directory named `node_modules` at the root of an extraResources `from`;
+# carrying it as its own entry (where nested node_modules dirs are kept) is
+# the supported workaround.
+extraResources:
+  - from: out/dsh
+    to: dsh
+    filter: ["**/*", "!node_modules/**"]
+  - from: out/dsh/node_modules
+    to: dsh/node_modules
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - dmg
+    - zip
