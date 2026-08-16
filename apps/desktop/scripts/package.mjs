@@ -237,7 +237,9 @@ for (const artifact of [path.join(REPO_ROOT, 'apps/cli/lib/bin.js'), path.join(R
   }
 }
 
-const platformFlag = process.argv.slice(2).find((arg) => ['--mac', '--win', '--linux'].includes(arg)) ?? ''
+// No flag: electron-builder targets the current platform by default. An empty
+// string argument is rejected ("Unknown argument"), so pass nothing instead.
+const platformFlag = process.argv.slice(2).find((arg) => ['--mac', '--win', '--linux'].includes(arg)) ?? null
 
 rmSync(path.join(APP_DIR, 'out'), { recursive: true, force: true })
 
@@ -270,4 +272,4 @@ try {
 
 console.log('building electron artifact...')
 const builder = path.join(APP_DIR, 'node_modules', '.bin', process.platform === 'win32' ? 'electron-builder.cmd' : 'electron-builder')
-execFileSync(builder, [platformFlag], { cwd: APP_DIR, stdio: 'inherit' })
+execFileSync(builder, platformFlag ? [platformFlag] : [], { cwd: APP_DIR, stdio: 'inherit' })
