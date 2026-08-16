@@ -48,6 +48,12 @@
   border-left: none;
 }
 
+/* Desktop shell: the closed sidebar collapses to zero width (Codex-style), so
+   its right seam must not paint either. The browser keeps the bordered rail. */
+:global(html[data-shell='desktop']) .frame[data-sidebar-collapsed] .sidebarCol {
+  border-right: none;
+}
+
 /* Drag handles are frame children (columns clip overflow): an 8px hit strip
    centered on the column border via inline left, above column content. Details
    adds a visible 12x32 pill at vertical center; sidebar keeps only the hit strip. */

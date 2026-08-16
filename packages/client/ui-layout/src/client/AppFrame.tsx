@@ -140,6 +140,12 @@ export function AppFrame({
     ? 0
     : panels.sidebar === 0 ? SIDEBAR_DEFAULT : panels.sidebar
   const cols = computeColumns(viewport, sidebarPreference, detailsSession === undefined ? 0 : panels.details)
+  // Desktop shell (Electron hiddenInset): a closed sidebar collapses to ZERO
+  // width — the Codex-style "sidebar gone, floating expand button" model —
+  // instead of the 56px control rail. The expand affordance is rendered by the
+  // sidebar occupant as a fixed-position button (SidebarRoot). Browser keeps
+  // the bordered rail.
+  if (sidebarCollapsed && document.documentElement.dataset.shell === 'desktop') cols.sidebar = 0
   const colsRef = useRef(cols)
   colsRef.current = cols
 

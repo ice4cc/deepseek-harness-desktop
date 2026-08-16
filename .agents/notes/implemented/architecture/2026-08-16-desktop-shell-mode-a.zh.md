@@ -16,6 +16,8 @@ Status: implemented
 
 生命周期：显式的 `app.setName('DeepSeek Harness Desktop')` 使单实例锁和 userData 与其他共享同一工作区包名的构建保持区分；关闭窗口终止子进程（SIGTERM，5 秒后 SIGKILL）并在所有平台退出；`$DSH_HOME/desktop/` 下的 pidfile 回收被强杀实例遗留的子进程，只杀死命令行仍指向 dsh 入口的 pid。
 
+窗口一体化：macOS 上窗口隐藏系统标题栏（`titleBarStyle: 'hiddenInset'`、`acceptFirstMouse: true`），红绿灯内嵌到页面自绘的顶部条带中；Windows 保留原生窗口框。壳在加载 URL 上追加 `?shell=desktop`，web 入口据此给 `<html>` 打上 `data-shell="desktop"` 标记；以该属性为键的桌面专属规则把侧栏品牌行重排为两行（第一行是钉在红绿灯高度的折叠按钮，下方是全宽字标），把会话列顶部条带——空态 hero 面板，或打开会话后的会话头行——以及品牌行标记为 `-webkit-app-region: drag`（其内部可交互元素保持 no-drag），并把收起的侧栏折成零宽而非默认的 56 px 窄栏。折叠按钮是同一个常驻节点，经 portal 渲染进框架的 overlay 层，两种状态位于同一坐标：零宽列中 fixed 定位的逃逸元素无法被可靠地裁出浏览器进程缓存的拖拽区域（真实点击落在会话条带的 drag 区上——单击拖动窗口、双击缩放），而单一常驻节点意味着折叠/展开不交换任何 DOM。纯浏览器加载不带该标记、维持原有布局；该属性在 Electron 之外无效果。
+
 ## 备选方案
 
 - **Electron 内进程内宿主**（把 dsh boot 图作为应用自身模块图加载，用自定义协议提供资源）：否决——它把 web 客户端的渲染与解析路径从浏览器服务的路径中分叉出去；上游每处客户端改动都要在两个运行时中验证，且 Node 内部加载器需求使宿主侧在 Electron 二进制下永久特判。
@@ -24,7 +26,7 @@ Status: implemented
 
 ## 后果
 
-- 桌面 GUI *就是* web 应用：深度 UI 定制走既有的客户端插件与插槽接缝（Phase 2），而非平行代码库；上游同步只触及三个上游文件（`pnpm-workspace.yaml` allowBuilds、`tsconfig.base.json` 中 picker 包的两个 paths 条目——本工作暴露的上游缺口——以及根 `package.json` 脚本），全部列于 `apps/desktop/README.md`。
+- 桌面 GUI *就是* web 应用：深度 UI 定制走既有的客户端插件与插槽接缝（Phase 2），而非平行代码库；上游同步只在本工作有意触及的上游文件处冲突——三个机械性清单条目（`pnpm-workspace.yaml` allowBuilds、`tsconfig.base.json` 中 picker 包的两个 paths 条目（本工作暴露的上游缺口）、根 `package.json` 脚本），外加 web 侧若干小型桌面壳补丁（`apps/web/src/main.ts` 的 `?shell=desktop` 标记检测、`ui-layout` AppFrame 中收起侧栏的零宽轨道，以及 `ui-sidebar` SidebarRoot 与 `ui-conversation` ConversationRoot 中的 `data-shell` 键控块）。全部列于 `apps/desktop/README.md`；每处 web 补丁都是追加块或数行插入，合并时按保留本地版本解决。
 - dsh 子进程运行在 Electron 自带 Node 上；Electron 升级必须使其保持在仓库 `engines` 范围内。
 - pnpm deploy 不是 plain-Node 运行时布局，因此打包携带四个修复步骤；它们是确定性的，并通过从中立目录启动部署树来验证。
 - 延期项：托盘、全局快捷键、原生目录选择器后端（picker 接缝已为 Electron 提供的 `native` 后端预留）、Windows 残留子进程回收（该平台上没有 `ps`）。

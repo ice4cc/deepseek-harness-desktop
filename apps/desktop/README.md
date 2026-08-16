@@ -1,5 +1,7 @@
 # @deepseek-ai/dsh-desktop
 
+English | [中文](README.zh.md)
+
 Electron desktop shell over the dsh web GUI (Mode A: loopback HTTP). The main process spawns the `dsh` web profile as a child Node process (`web --port 0`, run through Electron's own binary with `ELECTRON_RUN_AS_NODE=1`), waits for the documented readiness line (`dsh web: http://127.0.0.1:<port>`), and loads that loopback URL in one BrowserWindow. The GUI is served by `dsh-host-webserver` bound to 127.0.0.1 only; the shell adds no protocol surface — the page talks to dsh over same-origin HTTP/WebSocket exactly as in a browser, so every web client package (and all slot-based UI customization) works unchanged.
 
 ## Run from source
@@ -19,6 +21,17 @@ The dev layout launches the dsh bin **from source through tsx** (`node --expose-
 - Closing the window terminates the child (SIGTERM, SIGKILL after 5 s) and quits on every platform — deliberately, so closing the app never leaves the agent host running unattended.
 - An early child exit shows a dialog with the stderr tail and quits.
 - A pidfile at `$DSH_HOME/desktop/dsh-child.pid` reaps a dsh child left behind by a force-killed previous instance; the pid is only killed when its command line still names the dev source entry (`apps/cli/src/bin.ts`) or the packaged bin (`dsh/lib/bin.js`).
+
+## Window integration
+
+On macOS the window hides the OS caption bar (`titleBarStyle: 'hiddenInset'`, `acceptFirstMouse: true`), so the traffic lights inset over the page's own top strip; Windows keeps the native frame. The shell appends `?shell=desktop` to the loaded URL, and `apps/web/src/main.ts` tags `<html data-shell="desktop">` in response. Desktop-only layout rules keyed on that attribute (appended blocks and small insertions in `ui-sidebar`'s SidebarRoot, `ui-layout`'s AppFrame, and `ui-conversation`'s ConversationRoot):
+
+- **Traffic-light clearance** — the sidebar brand row becomes two lines: the collapse/expand toggle pinned at the traffic-light height (line 1), the full-width wordmark below it (line 2).
+- **Zero-width collapse** — a collapsed sidebar takes zero width instead of the stock 56 px rail; its vertical menu items are hidden. Plain browsers keep the bordered rail.
+- **Persistent floating toggle** — one button, portaled into the frame's overlay layer at one coordinate in both states. A fixed-position escapee of the zero-width column is not reliably carved out of the browser process's cached drag regions (real clicks land on the conversation strip's drag area: single click drags the window, double click zooms it); portaling into the unclipped full-viewport layer restores reliable hit-testing, and one persistent node means collapse/expand swaps no DOM.
+- **Window drag regions** — the conversation column's top strip moves the window (the blank-draft hero sheet, or the session header row once a session is open), as does the sidebar brand row; interactive descendants stay no-drag.
+
+Plain browser loads carry no marker and keep the stock layout (`-webkit-app-region` is inert outside Electron). The pre-paint `backgroundColor` is the dark base token; theme following of the window surface is deferred.
 
 ## Packaged layout (electron-builder)
 
@@ -44,8 +57,13 @@ This app is additive (`apps/desktop/` only), so merges conflict only where it in
 | `pnpm-workspace.yaml` | `allowBuilds`: `electron: true`, `electron-winstaller: false` | pnpm 10+ blocks unlisted build scripts; the Electron binary download is needed, the Windows NSIS tooling is a no-op here |
 | `tsconfig.base.json` | two `paths` entries for `dsh-client-ui-directory-picker-{native,browse}` | these client packages lack the explicit entry every host/client-group package needs (upstream bug; without it source launches fail on Node 24) |
 | root `package.json` | `desktop:dev`, `desktop:package` scripts | convenience entry points |
+| `apps/web/src/main.ts` | `?shell=desktop` marker detection (tags `<html data-shell="desktop">`) | window integration — see above |
+| `packages/client/ui-layout/.../AppFrame.tsx` + `.module.css` | zero-width collapsed-sidebar track on desktop; no border seam while collapsed | window integration — see above |
+| `packages/client/ui-sidebar/.../SidebarRoot.tsx` + `.module.css` | persistent portaled toggle, two-line brand row, hidden menu items when collapsed | window integration — see above |
+| `packages/client/ui-sidebar/package.json` | `react-dom` dependency (+ `@types/react-dom`) for the portal import | window integration — see above |
+| `packages/client/ui-conversation/.../ConversationRoot.module.css` | appended `data-shell`-keyed block (hero + session-header drag regions) | window integration — see above |
 
-If upstream adds the same `paths` entries or scripts independently, drop the local copy on merge.
+If upstream adds the same `paths` entries or scripts independently, drop the local copy on merge. The web-side patches are appended blocks and a few inserted lines; on merge conflict, keep the local version unless upstream ships its own desktop-shell layout.
 
 ## Known Limitations and Deferred Work
 

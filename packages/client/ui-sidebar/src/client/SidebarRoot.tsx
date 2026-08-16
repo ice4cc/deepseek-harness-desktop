@@ -16,6 +16,7 @@
  * pointing at carries no bar.
  */
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import {
   BrandWordmark, FishLogo,
@@ -69,6 +70,21 @@ export function SidebarRoot({
   // collapsed state renders the rail statically (no delay-hidden icons).
   const everWide = useRef(!collapsed)
   if (!collapsed) everWide.current = true
+
+  // Desktop shell: the single toggle is portaled into the frame's overlay
+  // layer and stays mounted across collapse/expand. A fixed-position escapee
+  // of the zero-width column is not reliably carved out of the browser
+  // process's cached drag regions — real clicks land on the conversation
+  // strip's drag area (single click drags the window, double click zooms it)
+  // — so the button lives in the unclipped full-viewport layer. One
+  // persistent node at one coordinate (94,6, both states) means the toggle
+  // swaps no DOM and the glyph never flashes while the column animates; the
+  // in-column duplicate is hidden on desktop (.toggle display:none). Queried
+  // per render so an HMR-swapped layer node is picked up on the next paint.
+  const desktopShell = document.documentElement.dataset.shell === 'desktop'
+  const overlayLayer = desktopShell
+    ? document.querySelector<HTMLElement>('[data-shell-overlay]')
+    : null
 
   // Scrollbars in the column follow the pointer (.quietBars rebinds them
   // away): drawn while it is inside, and for SCROLLBAR_LINGER_MS after it
@@ -141,8 +157,10 @@ export function SidebarRoot({
           </button>
         )}
         {/* Rail resting state is the whale mark; hovering swaps in the panel
-            icon (the expand affordance, figma sidebar-hover flow). */}
-        <Tooltip label={collapsed ? t('toggle.open') : t('toggle.collapse')} delayMs={500}>
+            icon (the expand affordance, figma sidebar-hover flow). Desktop
+            suppresses the tooltip — the button sits over the window chrome and
+            the hover bubble read as noise there. */}
+        <Tooltip label={collapsed ? t('toggle.open') : t('toggle.collapse')} delayMs={500} disabled={desktopShell}>
           <button
             type="button"
             className={clsx(css.iconButton, css.toggle)}
@@ -155,6 +173,21 @@ export function SidebarRoot({
           </button>
         </Tooltip>
       </div>
+
+      {/* Desktop: the persistent floating toggle, portaled into the frame's
+          overlay layer (target resolved above). Same node and coordinate in
+          both states — collapse/expand swaps no DOM. */}
+      {overlayLayer !== null && createPortal(
+        <button
+          type="button"
+          className={css.floatingExpand}
+          aria-label={wide ? t('toggle.collapse') : t('toggle.open')}
+          onClick={() => { toggleSidebar() }}
+        >
+          <IconPanelLeftOutline16 size={16} />
+        </button>,
+        overlayLayer,
+      )}
 
       {/* Expanded, the button carries its own label — tooltip only on the rail. */}
       <Tooltip label={t('session.new.label')} delayMs={500} disabled={wide}>

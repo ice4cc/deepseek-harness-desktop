@@ -50,6 +50,36 @@
   display: none;
 }
 
+/* Desktop shell (Electron hiddenInset): with a session open, this header row
+   is the window's drag strip — its padding and gaps move the window while the
+   breadcrumb, action, and utility controls stay no-drag. */
+:global(html[data-shell='desktop']) .header {
+  -webkit-app-region: drag;
+}
+
+:global(html[data-shell='desktop']) .header button,
+:global(html[data-shell='desktop']) .header nav,
+:global(html[data-shell='desktop']) .header input,
+:global(html[data-shell='desktop']) .header select,
+:global(html[data-shell='desktop']) .header a {
+  -webkit-app-region: no-drag;
+}
+
+/* Blank phase: the scroll body's empty areas are the drag strip; the composer
+   seat and every interactive control inside stay no-drag. */
+:global(html[data-shell='desktop']) .root[data-phase='hero'] .scrollBody {
+  -webkit-app-region: drag;
+}
+
+:global(html[data-shell='desktop']) .root[data-phase='hero'] .scrollBody button,
+:global(html[data-shell='desktop']) .root[data-phase='hero'] .scrollBody input,
+:global(html[data-shell='desktop']) .root[data-phase='hero'] .scrollBody textarea,
+:global(html[data-shell='desktop']) .root[data-phase='hero'] .scrollBody select,
+:global(html[data-shell='desktop']) .root[data-phase='hero'] .scrollBody a,
+:global(html[data-shell='desktop']) .root[data-phase='hero'] .composerSeat {
+  -webkit-app-region: no-drag;
+}
+
 .titleRow {
   display: flex;
   align-items: center;

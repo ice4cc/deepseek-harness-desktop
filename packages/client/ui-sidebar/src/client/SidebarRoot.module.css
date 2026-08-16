@@ -282,3 +282,87 @@
     animation: none;
   }
 }
+
+/* Desktop shell (Electron hiddenInset): the OS traffic lights inset over the
+   top-left corner. Wide mode turns the logo row into a two-line window chrome
+   (Codex layout): line 1 = [78 px light clearance][collapse toggle] plus
+   draggable empty space, line 2 = the brand wordmark at its natural size —
+   a 256 px sidebar cannot fit lights + 182 px wordmark + toggle on one line.
+   The row is a window drag strip; its buttons stay no-drag. Collapsed mode
+   drops to zero width (AppFrame) and keeps only the expand button, floating
+   fixed in its line-1 spot. */
+:global(html[data-shell='desktop']) .logoRow {
+  -webkit-app-region: drag;
+}
+
+:global(html[data-shell='desktop']) .logoRow button {
+  -webkit-app-region: no-drag;
+}
+
+:global(html[data-shell='desktop']) .root:not(.collapsed) .logoRow {
+  /* Two lines, both children absolutely pinned (flex-wrap would not wrap the
+     100%-basis brand reliably here): line 1 is the window chrome row (light
+     clearance + toggle at 94,6), line 2 is the wordmark at natural size. The
+     fixed 68px height reserves both rows; zero padding keeps the content box
+     the full column width so the wordmark is never compressed. */
+  height: 68px;
+  padding: 0;
+  position: relative;
+}
+
+:global(html[data-shell='desktop']) .root:not(.collapsed) .brand {
+  /* Line 2, pinned below the toggle row, full width, natural size. */
+  position: absolute;
+  left: 0;
+  top: 36px;
+  width: 100%;
+}
+
+/* Desktop rail (Codex-style): a closed sidebar is zero-width — the vertical
+   control menu is hidden and the expand button floats next to the OS traffic
+   lights, in the same spot it occupies on line 1 when expanded. The floating
+   button is portaled into the frame's overlay layer (SidebarRoot.tsx) because
+   a fixed escapee of the zero-width column is not reliably carved out of the
+   browser process's cached drag regions. The browser keeps the bordered 56px
+   rail with its figma rest-as-whale / hover-reveals-panel behavior. */
+:global(html[data-shell='desktop']) .collapsed .newSession,
+:global(html[data-shell='desktop']) .collapsed .regionArea,
+:global(html[data-shell='desktop']) .collapsed .footArea {
+  display: none;
+}
+
+/* Desktop: the portaled floating button (overlay layer) is the ONLY toggle in
+   both states — one persistent node at one coordinate, so collapse/expand
+   swaps no DOM and the glyph never flashes while the column animates. Hide the
+   in-column duplicate in every state (it would otherwise sit on top of the
+   portal button when expanded and steal the click, re-introducing the handoff). */
+:global(html[data-shell='desktop']) .toggle {
+  display: none;
+}
+
+/* The persistent floating toggle, rendered (via portal) into the frame's
+   overlay layer. Same node and coordinate (94,6) in both states. */
+.floatingExpand {
+  position: absolute;
+  left: 94px;
+  /* Center y=18: the OS traffic-light centers sit at ~16.75 CSS px from the
+     window top (measured from a real screenshot), not the 20 assumed for a
+     standard title bar — 2px higher than the in-flow position. */
+  top: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--dsw-alias-label-secondary);
+  -webkit-app-region: no-drag;
+}
+
+.floatingExpand:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}

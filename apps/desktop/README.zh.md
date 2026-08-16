@@ -1,0 +1,72 @@
+# @deepseek-ai/dsh-desktop
+
+[English](README.md) | 中文
+
+dsh web GUI 之上的 Electron 桌面壳（Mode A：回环 HTTP）。主进程以子 Node 进程方式拉起 `dsh` web profile（`web --port 0`，通过 Electron 自带二进制加 `ELECTRON_RUN_AS_NODE=1` 运行），等待文档约定的就绪行（`dsh web: http://127.0.0.1:<port>`），然后在单个 BrowserWindow 中加载该回环地址。GUI 由绑定到 127.0.0.1 的 `dsh-host-webserver` 服务；壳不增加任何协议面——页面与 dsh 之间走同源 HTTP/WebSocket，与浏览器中完全一致，因此所有 web 客户端包（以及全部基于插槽的 UI 定制）原样工作。
+
+## 从源码运行
+
+```sh
+pnpm run build                                  # builds apps/cli lib + frontend dist
+pnpm --filter @deepseek-ai/dsh-desktop run dev  # electron . over the repo checkout
+```
+
+dev 布局通过 tsx **从源码**启动 dsh bin（`node --expose-internals --import <tsx> <repo>/apps/cli/src/bin.ts web --port 0`，加 `TSX_TSCONFIG_PATH=<repo>/tsconfig.json`）：pnpm 隔离的 checkout 无法向 plain Node 提供仓库裸 `@deepseek-ai/*` 包名，所以源码启动走 tsx 的 tsconfig-paths 解析——与无密钥 web smoke 使用同一契约。完整环境会被透传，因此 `DEEPSEEK_API_KEY`（或已配置的 provider）能到达宿主。
+
+cordis HMR 服务需要 `--expose-internals`：它依赖 Node 的内部 ESM 加载器，而在 Electron 自带 Node（RUN_AS_NODE 模式）下，plain 源码启动所依赖的 `node-addon-require-builtin` 回退不保证能加载。
+
+## 生命周期语义
+
+- 单实例锁：第二次启动会聚焦已有窗口并退出，不触碰正在运行的子进程。
+- 关闭窗口终止子进程（SIGTERM，5 秒后 SIGKILL）并在所有平台退出——这是有意为之，确保关闭应用绝不会让 agent 宿主无人看管地继续运行。
+- 子进程提前退出时弹出带 stderr 尾部的对话框并退出。
+- `$DSH_HOME/desktop/dsh-child.pid` 下的 pidfile 回收被强杀的上一个实例遗留的 dsh 子进程；只有当该 pid 的命令行仍指向 dev 源码入口（`apps/cli/src/bin.ts`）或打包 bin（`dsh/lib/bin.js`）时才会被杀死。
+
+## 窗口一体化
+
+macOS 上窗口隐藏系统标题栏（`titleBarStyle: 'hiddenInset'`、`acceptFirstMouse: true`），红绿灯内嵌到页面自绘的顶部条带中；Windows 保留原生窗口框。壳在加载 URL 上追加 `?shell=desktop`，`apps/web/src/main.ts` 据此给 `<html>` 打上 `data-shell="desktop"` 标记。以该属性为键的桌面专属布局规则（追加块与少量插入，位于 `ui-sidebar` SidebarRoot、`ui-layout` AppFrame 与 `ui-conversation` ConversationRoot）：
+
+- **红绿灯让位**——侧栏品牌行变为两行：第一行是钉在红绿灯高度的折叠/展开按钮，下方是全宽字标。
+- **零宽折叠**——收起的侧栏取零宽而非默认的 56 px 窄栏；其竖排菜单项被隐藏。纯浏览器保留带边框窄栏。
+- **常驻浮动按钮**——同一个按钮经 portal 渲染进框架的 overlay 层，两种状态位于同一坐标。零宽列中 fixed 定位的逃逸元素无法被可靠地裁出浏览器进程缓存的拖拽区域（真实点击落在会话条带的 drag 区上：单击拖动窗口、双击缩放）；portal 到无裁剪的全视口层恢复了可靠的命中测试，而单一常驻节点意味着折叠/展开不交换任何 DOM。
+- **窗口拖拽区**——会话列顶部条带可拖动窗口（空态 hero 面板，或打开会话后的会话头行），侧栏品牌行同样可拖；其内部可交互元素保持 no-drag。
+
+纯浏览器加载不带该标记、维持原有布局（`-webkit-app-region` 在 Electron 之外无效果）。首帧前的 `backgroundColor` 取深色基底 token；窗口表面的主题跟随为延期项。
+
+## 打包布局（electron-builder）
+
+`resources/dsh/` 携带一份自包含的 `@deepseek-ai/dsh` 生产安装：一个 `pnpm deploy --legacy --prod` 闭包，加上 `scripts/package.mjs` 应用的后续处理步骤——因为 pnpm 隔离 store 不能被 plain-Node 运行时解析，且不得引用源码 checkout：
+
+1. **仅 peer 声明注入**——闭包中只作为 `peerDependencies` 被引用的包对 pnpm deploy 闭包不可见（能力 Service Definition 等接缝），因此它们在部署期间被加入部署目标的 `dependencies`，之后恢复原 manifest。
+2. **顶层扁平化**——为 store 保留在 `.pnpm` 虚拟目录中的每个包在根 `node_modules` 添加一个相对符号链接。dsh profile boot 从安装锚点出发做字面路径的 node_modules 遍历来解析插件导入，无法穿透顶层符号链接进入 store；扁平布局使闭包内每个包都能从任意锚点解析。
+3. **link 覆盖实体化**——工作区的 `link:vendor/*` 覆盖（重定范围的 Cordis 基础）被拷贝进 store，且树内所有指向它们的链接被重定向，因为 pnpm deploy 会把那些覆盖保留为指回源码 checkout 的链接。
+4. **外部链接剪除**——任何不能解析到部署内部的符号链接都被移除；electron-builder 对它拷贝的每个文件做 stat，遇到断链即失败。
+
+主进程在 `app.isPackaged` 时把 bin 解析为 `resources/dsh/lib/bin.js`（plain Node 启动——无需 tsx）。见本包 `package.json` 的 `package` 脚本。
+
+从 shell 验证打包构建前，先 unset `ELECTRON_RUN_AS_NODE`：该变量存在时，应用二进制会以 plain Node 方式运行并静默退出，不会启动 GUI。
+
+## 上游同步
+
+`upstream` remote 跟踪 `deepseek-ai/deepseek-harness`（默认分支 `master`）。用 `git fetch upstream && git merge upstream/master` 同步，然后跑验证阶梯：`pnpm run test:gui` → `DSH_SNAPSHOT=replay pnpm run test:web` → dev 模式启动本应用。
+
+本应用是纯增量的（仅 `apps/desktop/`），因此合并只在本工作有意触及上游文件的地方冲突——保持该列表最小且机械：
+
+| 文件 | 改动 | 原因 |
+| --- | --- | --- |
+| `pnpm-workspace.yaml` | `allowBuilds`: `electron: true`, `electron-winstaller: false` | pnpm 10+ 拦截未列出的构建脚本；需要 Electron 二进制下载，Windows NSIS 工具链在此为 no-op |
+| `tsconfig.base.json` | `dsh-client-ui-directory-picker-{native,browse}` 的两个 `paths` 条目 | 这些客户端包缺少每个 host/client-group 包都需要的显式条目（上游 bug；缺它源码启动在 Node 24 上失败） |
+| 根 `package.json` | `desktop:dev`、`desktop:package` 脚本 | 便捷入口 |
+| `apps/web/src/main.ts` | `?shell=desktop` 标记检测（给 `<html>` 打 `data-shell="desktop"`） | 窗口一体化——见上节 |
+| `packages/client/ui-layout/.../AppFrame.tsx` + `.module.css` | desktop 下收起侧栏的零宽轨道；收起时无边框缝 | 窗口一体化——见上节 |
+| `packages/client/ui-sidebar/.../SidebarRoot.tsx` + `.module.css` | 常驻 portal 按钮、两行品牌行、收起时隐藏菜单项 | 窗口一体化——见上节 |
+| `packages/client/ui-sidebar/package.json` | portal 导入所需的 `react-dom` 依赖（+ `@types/react-dom`） | 窗口一体化——见上节 |
+| `packages/client/ui-conversation/.../ConversationRoot.module.css` | 追加的 `data-shell` 键控块（hero + 会话头拖拽区） | 窗口一体化——见上节 |
+
+若上游自行加入了相同的 `paths` 条目或脚本，合并时丢弃本地副本。web 侧补丁是追加块与数行插入；合并冲突时保留本地版本，除非上游发布了它自己的桌面壳布局。
+
+## 已知限制与延期工作
+
+- 尚无托盘、全局快捷键、原生目录选择器后端——它们是 Phase 2+ 的界面（picker 接缝已为 Electron 提供的 `native` 后端预留）。
+- 子进程运行在 Electron 自带的 Node 上；未来的 Electron 升级必须使其保持在仓库 `engines` 范围内（`^22.19 || >=24`）。
+- Windows 残留子进程回收依赖 `ps`，该平台没有此命令；pidfile 仍会写入和移除，但在平台检查落地前回收是 no-op。

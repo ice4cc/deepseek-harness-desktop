@@ -231,6 +231,16 @@ function createWindow(url) {
     minWidth: 900,
     minHeight: 600,
     title: 'DeepSeek Harness',
+    // The dark base token (neutral-bluish-950): avoids a white flash before
+    // the first page paint. Theme following is deferred.
+    backgroundColor: '#151517',
+    // macOS hides the OS caption bar; the traffic lights inset over the page's
+    // own top strip (the sidebar brand row and the conversation header carry
+    // the desktop-shell layout through `?shell=desktop`). Windows keeps the
+    // native frame. acceptFirstMouse: a click on an unfocused window acts
+    // instead of only activating it — required for the floating expand button
+    // after the user has been looking elsewhere.
+    ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset', acceptFirstMouse: true } : {}),
     webPreferences: { contextIsolation: true, nodeIntegration: false },
   })
   // The SPA never opens its own windows; hand external links to the OS browser.
@@ -238,7 +248,11 @@ function createWindow(url) {
     if (/^https?:/i.test(target)) void shell.openExternal(target)
     return { action: 'deny' }
   })
-  void window.loadURL(url)
+  // The shell marker lets the web page apply desktop-only layout (traffic-light
+  // clearance, window drag regions); plain browser loads stay untouched.
+  const target = new URL(url)
+  target.searchParams.set('shell', 'desktop')
+  void window.loadURL(target.toString())
   return window
 }
 
