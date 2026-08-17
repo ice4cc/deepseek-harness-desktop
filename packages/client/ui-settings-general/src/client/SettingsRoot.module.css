@@ -57,6 +57,16 @@
   justify-content: center;
 }
 
+/* Desktop shell (Electron hiddenInset): the panel overlaps the window drag
+   strips (sidebar brand row, conversation header). Without an explicit
+   no-drag, Chromium routes clicks inside those cached drag rectangles to the
+   window instead of the page — the close button and header actions sit in
+   exactly that zone. Carve the whole layer out while the dialog is open;
+   dragging the window through an open modal is not a supported gesture. */
+:global(html[data-shell='desktop']) .overlay {
+  -webkit-app-region: no-drag;
+}
+
 .mask {
   position: absolute;
   inset: 0;

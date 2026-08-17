@@ -6,6 +6,13 @@
   z-index: 1100;
 }
 
+/* Desktop shell (Electron hiddenInset): same drag-strip carve-out as the
+   Modal primitive — the stage's controls must receive clicks even where they
+   overlap the window drag regions. */
+:global(html[data-shell='desktop']) .onboardingOverlay {
+  -webkit-app-region: no-drag;
+}
+
 /* Mask */
 .onboardingMask {
   position: absolute;

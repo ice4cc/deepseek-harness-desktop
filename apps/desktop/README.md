@@ -24,12 +24,12 @@ The dev layout launches the dsh bin **from source through tsx** (`node --expose-
 
 ## Window integration
 
-On macOS the window hides the OS caption bar (`titleBarStyle: 'hiddenInset'`, `acceptFirstMouse: true`), so the traffic lights inset over the page's own top strip; Windows keeps the native frame. The shell appends `?shell=desktop` to the loaded URL, and `apps/web/src/main.ts` tags `<html data-shell="desktop">` in response. Desktop-only layout rules keyed on that attribute (appended blocks and small insertions in `ui-sidebar`'s SidebarRoot, `ui-layout`'s AppFrame, and `ui-conversation`'s ConversationRoot):
+On macOS the window hides the OS caption bar (`titleBarStyle: 'hiddenInset'`, `acceptFirstMouse: true`), so the traffic lights inset over the page's own top strip; Windows keeps the native frame. The shell appends `?shell=desktop` to the loaded URL, and `apps/web/src/main.ts` tags `<html data-shell="desktop">` in response. Desktop-only layout rules keyed on that attribute (appended blocks and small insertions in `ui-sidebar`'s SidebarRoot, `ui-layout`'s AppFrame, `ui-conversation`'s ConversationRoot, and the modal layers — `ui-settings-general`'s SettingsRoot and `ui-primitives`' Modal/OnboardingSurface):
 
 - **Traffic-light clearance** — the sidebar brand row becomes two lines: the collapse/expand toggle pinned at the traffic-light height (line 1), the full-width wordmark below it (line 2).
 - **Zero-width collapse** — a collapsed sidebar takes zero width instead of the stock 56 px rail; its vertical menu items are hidden. Plain browsers keep the bordered rail.
 - **Persistent floating toggle** — one button, portaled into the frame's overlay layer at one coordinate in both states. A fixed-position escapee of the zero-width column is not reliably carved out of the browser process's cached drag regions (real clicks land on the conversation strip's drag area: single click drags the window, double click zooms it); portaling into the unclipped full-viewport layer restores reliable hit-testing, and one persistent node means collapse/expand swaps no DOM.
-- **Window drag regions** — the conversation column's top strip moves the window (the blank-draft hero sheet, or the session header row once a session is open), as does the sidebar brand row; interactive descendants stay no-drag.
+- **Window drag regions** — the conversation column's top strip moves the window (the blank-draft hero sheet, or the session header row once a session is open), as does the sidebar brand row; interactive descendants stay no-drag. Full-viewport modal layers declare `no-drag` for the whole layer while open: Chromium routes a click to the window whenever it falls inside a drag rectangle that no explicit no-drag element carves out, and the centered panels overlap the header strip's rectangle (the session header row includes the tab bar, so its box reaches ~68 px down — under the panel's close button and header actions).
 
 Plain browser loads carry no marker and keep the stock layout (`-webkit-app-region` is inert outside Electron). The pre-paint `backgroundColor` is the dark base token; theme following of the window surface is deferred.
 
@@ -62,6 +62,8 @@ This app is additive (`apps/desktop/` only), so merges conflict only where it in
 | `packages/client/ui-sidebar/.../SidebarRoot.tsx` + `.module.css` | persistent portaled toggle, two-line brand row, hidden menu items when collapsed | window integration — see above |
 | `packages/client/ui-sidebar/package.json` | `react-dom` dependency (+ `@types/react-dom`) for the portal import | window integration — see above |
 | `packages/client/ui-conversation/.../ConversationRoot.module.css` | appended `data-shell`-keyed block (hero + session-header drag regions) | window integration — see above |
+| `packages/client/ui-settings-general/.../SettingsRoot.module.css` | settings panel layer is `no-drag` while open (drag-strip carve-out) | window integration — see above |
+| `packages/client/ui-primitives/.../Modal.module.css`, `OnboardingSurface.module.css` | modal + first-run stage layers are `no-drag` while open (same carve-out) | window integration — see above |
 
 If upstream adds the same `paths` entries or scripts independently, drop the local copy on merge. The web-side patches are appended blocks and a few inserted lines; on merge conflict, keep the local version unless upstream ships its own desktop-shell layout.
 

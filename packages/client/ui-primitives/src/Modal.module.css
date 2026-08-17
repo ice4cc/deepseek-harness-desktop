@@ -9,6 +9,13 @@
   padding: 24px;
 }
 
+/* Desktop shell (Electron hiddenInset): carve the whole layer out of the
+   window drag strips while a modal is open, or Chromium routes clicks in the
+   overlap zone (the card's header row) to the window instead of the page. */
+:global(html[data-shell='desktop']) .root {
+  -webkit-app-region: no-drag;
+}
+
 /* User/spec mask: rgba(0,0,0,0.24) + blur(2px) via --dsw-alias-bg-mask-1 /
    --dsw-mask-blur (light); dark theme raises mask opacity. */
 .mask {

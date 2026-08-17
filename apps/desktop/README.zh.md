@@ -24,12 +24,12 @@ cordis HMR 服务需要 `--expose-internals`：它依赖 Node 的内部 ESM 加�
 
 ## 窗口一体化
 
-macOS 上窗口隐藏系统标题栏（`titleBarStyle: 'hiddenInset'`、`acceptFirstMouse: true`），红绿灯内嵌到页面自绘的顶部条带中；Windows 保留原生窗口框。壳在加载 URL 上追加 `?shell=desktop`，`apps/web/src/main.ts` 据此给 `<html>` 打上 `data-shell="desktop"` 标记。以该属性为键的桌面专属布局规则（追加块与少量插入，位于 `ui-sidebar` SidebarRoot、`ui-layout` AppFrame 与 `ui-conversation` ConversationRoot）：
+macOS 上窗口隐藏系统标题栏（`titleBarStyle: 'hiddenInset'`、`acceptFirstMouse: true`），红绿灯内嵌到页面自绘的顶部条带中；Windows 保留原生窗口框。壳在加载 URL 上追加 `?shell=desktop`，`apps/web/src/main.ts` 据此给 `<html>` 打上 `data-shell="desktop"` 标记。以该属性为键的桌面专属布局规则（追加块与少量插入，位于 `ui-sidebar` SidebarRoot、`ui-layout` AppFrame、`ui-conversation` ConversationRoot 与模态层——`ui-settings-general` SettingsRoot 和 `ui-primitives` Modal/OnboardingSurface）：
 
 - **红绿灯让位**——侧栏品牌行变为两行：第一行是钉在红绿灯高度的折叠/展开按钮，下方是全宽字标。
 - **零宽折叠**——收起的侧栏取零宽而非默认的 56 px 窄栏；其竖排菜单项被隐藏。纯浏览器保留带边框窄栏。
 - **常驻浮动按钮**——同一个按钮经 portal 渲染进框架的 overlay 层，两种状态位于同一坐标。零宽列中 fixed 定位的逃逸元素无法被可靠地裁出浏览器进程缓存的拖拽区域（真实点击落在会话条带的 drag 区上：单击拖动窗口、双击缩放）；portal 到无裁剪的全视口层恢复了可靠的命中测试，而单一常驻节点意味着折叠/展开不交换任何 DOM。
-- **窗口拖拽区**——会话列顶部条带可拖动窗口（空态 hero 面板，或打开会话后的会话头行），侧栏品牌行同样可拖；其内部可交互元素保持 no-drag。
+- **窗口拖拽区**——会话列顶部条带可拖动窗口（空态 hero 面板，或打开会话后的会话头行），侧栏品牌行同样可拖；其内部可交互元素保持 no-drag。全屏模态层在打开期间对整个层声明 `no-drag`：只要点击落在某个没有任何显式 no-drag 元素裁出的 drag 矩形内，Chromium 就会把该点击路由给窗口；居中面板与头部条带的矩形重叠（会话头行包含标签栏，其盒子向下延伸到约 68 px——正好盖住面板的关闭按钮和头部操作区）。
 
 纯浏览器加载不带该标记、维持原有布局（`-webkit-app-region` 在 Electron 之外无效果）。首帧前的 `backgroundColor` 取深色基底 token；窗口表面的主题跟随为延期项。
 
@@ -62,6 +62,8 @@ macOS 上窗口隐藏系统标题栏（`titleBarStyle: 'hiddenInset'`、`acceptF
 | `packages/client/ui-sidebar/.../SidebarRoot.tsx` + `.module.css` | 常驻 portal 按钮、两行品牌行、收起时隐藏菜单项 | 窗口一体化——见上节 |
 | `packages/client/ui-sidebar/package.json` | portal 导入所需的 `react-dom` 依赖（+ `@types/react-dom`） | 窗口一体化——见上节 |
 | `packages/client/ui-conversation/.../ConversationRoot.module.css` | 追加的 `data-shell` 键控块（hero + 会话头拖拽区） | 窗口一体化——见上节 |
+| `packages/client/ui-settings-general/.../SettingsRoot.module.css` | 设置面板层打开期间整体 `no-drag`（拖拽区裁出） | 窗口一体化——见上节 |
+| `packages/client/ui-primitives/.../Modal.module.css`、`OnboardingSurface.module.css` | 模态 + 首次运行舞台层打开期间整体 `no-drag`（同一裁出） | 窗口一体化——见上节 |
 
 若上游自行加入了相同的 `paths` 条目或脚本，合并时丢弃本地副本。web 侧补丁是追加块与数行插入；合并冲突时保留本地版本，除非上游发布了它自己的桌面壳布局。
 
