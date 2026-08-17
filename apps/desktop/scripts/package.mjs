@@ -33,7 +33,8 @@ const CLI_PACKAGE_JSON = path.join(REPO_ROOT, 'apps', 'cli', 'package.json')
  * @param {string[]} args - argument list.
  */
 function run(command, args) {
-  execFileSync(command, args, { cwd: REPO_ROOT, stdio: 'inherit' })
+  // shell: true resolves pnpm through PATHEXT on Windows (pnpm.cmd).
+  execFileSync(command, args, { cwd: REPO_ROOT, stdio: 'inherit', shell: process.platform === 'win32' })
 }
 
 /** Locate a workspace package directory by its npm name, or undefined. */
