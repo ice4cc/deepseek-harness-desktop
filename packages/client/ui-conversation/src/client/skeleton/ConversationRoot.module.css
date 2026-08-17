@@ -50,18 +50,50 @@
   display: none;
 }
 
-/* Desktop shell (Electron hiddenInset): with a session open, this header row
-   is the window's drag strip — its padding and gaps move the window while the
-   breadcrumb, action, and utility controls stay no-drag. */
-:global(html[data-shell='desktop']) .header {
+/* Desktop shell (Electron hiddenInset): with a session open, only the top band
+   of this header — the empty strip above the title row that clears the OS
+   traffic lights and the floating toggle — is the window's drag area. The
+   draggable box must be exactly that band: Chromium routes a mousedown inside
+   any cached drag rectangle to the window even when a modal paints over it, so
+   dragging the whole header would swallow clicks on anything later rendered
+   above its gaps (the settings panel's close button sits in them). A
+   positioned child (.dragBand, ConversationSession.tsx) carries the region;
+   the title and tab rows keep their gaps plain. */
+.dragBand {
+  display: none;
+}
+
+:global(html[data-shell='desktop']) .dragBand {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* Must match the desktop padding-top below — together they keep the title
+     row exactly 44 px under the window's top edge. */
+  height: 44px;
   -webkit-app-region: drag;
 }
 
-:global(html[data-shell='desktop']) .header button,
-:global(html[data-shell='desktop']) .header nav,
-:global(html[data-shell='desktop']) .header input,
-:global(html[data-shell='desktop']) .header select,
-:global(html[data-shell='desktop']) .header a {
+/* Desktop shell (Electron hiddenInset): the window's top band belongs to the OS
+   traffic lights and the floating expand toggle (ui-sidebar .floatingExpand:
+   bottom edge 4 + 28 = 32 px) in BOTH sidebar states — collapsed, the
+   conversation column starts at the window's left edge under them; expanded,
+   the band continues over the column as empty drag space. Padding-top grows
+   from 12 to 44 px (32 + 12 gap), pushing the title row, right-edge utilities,
+   and tab row down as one block; being state-independent, the header never
+   jumps when the sidebar toggles. */
+:global(html[data-shell='desktop']) .header {
+  padding-top: 44px;
+}
+
+/* The open settings dialog (ui-settings-general flags <html
+   data-settings-open>) paints its panel over this band's rectangle on short
+   viewports — the panel's top edge sits only 24 px down, inside the band —
+   and Chromium would route mousedowns there to the window. The band yields
+   for the dialog's lifetime; dragging the window through an open modal is not
+   a supported gesture. */
+:global(html[data-shell='desktop'][data-settings-open]) .dragBand {
   -webkit-app-region: no-drag;
 }
 
@@ -69,6 +101,12 @@
    seat and every interactive control inside stay no-drag. */
 :global(html[data-shell='desktop']) .root[data-phase='hero'] .scrollBody {
   -webkit-app-region: drag;
+}
+
+/* The open settings dialog also paints over the blank-hero drag body; same
+   yield as the session header above. */
+:global(html[data-shell='desktop'][data-settings-open]) .root[data-phase='hero'] .scrollBody {
+  -webkit-app-region: no-drag;
 }
 
 :global(html[data-shell='desktop']) .root[data-phase='hero'] .scrollBody button,

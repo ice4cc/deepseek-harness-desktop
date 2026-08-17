@@ -76,6 +76,9 @@ export function ConversationSessionHeader({
       className={clsx(css.header, hideChrome && css.headerHidden)}
       aria-hidden={hideChrome || undefined}
     >
+      {/* Desktop shell: the window's drag band (ConversationRoot.module.css) —
+          only the top 44 px strip is draggable, never the title/tab rows. */}
+      <div className={css.dragBand} aria-hidden="true" />
       {!hideChrome && (
         <>
           <div className={css.titleRow}>

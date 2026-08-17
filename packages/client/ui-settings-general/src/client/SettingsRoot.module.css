@@ -58,11 +58,15 @@
 }
 
 /* Desktop shell (Electron hiddenInset): the panel overlaps the window drag
-   strips (sidebar brand row, conversation header). Without an explicit
-   no-drag, Chromium routes clicks inside those cached drag rectangles to the
-   window instead of the page — the close button and header actions sit in
-   exactly that zone. Carve the whole layer out while the dialog is open;
-   dragging the window through an open modal is not a supported gesture. */
+   strips (sidebar brand row, conversation header). Chromium routes a mousedown
+   inside a cached drag rectangle to the window even when this overlay paints
+   above it — the close button and header actions sit in exactly that zone.
+   Carve the whole layer out while open (covers a layer mounted inside a drag
+   strip); strips merely UNDER the layer in screen space are cleared by the
+   <html data-settings-open> flag SettingsRoot sets for the open lifetime —
+   they yield in their own module CSS, the only reliable way to remove a
+   rectangle another branch of the tree owns. Dragging the window through an
+   open modal is not a supported gesture. */
 :global(html[data-shell='desktop']) .overlay {
   -webkit-app-region: no-drag;
 }

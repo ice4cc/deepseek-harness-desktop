@@ -299,6 +299,13 @@
   -webkit-app-region: no-drag;
 }
 
+/* Wide mode only: the open settings dialog (ui-settings-general flags <html
+   data-settings-open>) paints its nav rail inside this strip's cached drag
+   rectangle, so the strip yields for the dialog's lifetime. */
+:global(html[data-shell='desktop'][data-settings-open]) .logoRow {
+  -webkit-app-region: no-drag;
+}
+
 :global(html[data-shell='desktop']) .root:not(.collapsed) .logoRow {
   /* Two lines, both children absolutely pinned (flex-wrap would not wrap the
      100%-basis brand reliably here): line 1 is the window chrome row (light

@@ -161,6 +161,17 @@ describe('SettingsPanel close paths', () => {
   })
 })
 
+describe('SettingsPanel desktop drag-strip flag', () => {
+  it('flags <html data-settings-open> for the open lifetime so window drag strips yield', () => {
+    mount()
+    expect(document.documentElement.hasAttribute('data-settings-open')).toBe(false)
+    openPanel()
+    expect(document.documentElement.hasAttribute('data-settings-open')).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(document.documentElement.hasAttribute('data-settings-open')).toBe(false)
+  })
+})
+
 describe('SettingsPanel navigation', () => {
   it('projects rows, marks the first active, and renders only that section', () => {
     mount()

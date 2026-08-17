@@ -115,6 +115,19 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
     setOpen(true)
   }, [])
 
+  // Desktop shell (Electron hiddenInset): Chromium routes a mousedown that
+  // lands inside a cached window-drag rectangle to the window even when this
+  // overlay paints above it, so the panel's header row (close button, header
+  // actions) would never receive the click while the conversation header or
+  // sidebar chrome strip under it stays draggable. Flag the document for the
+  // open lifetime; those strips yield to the flag in their module CSS.
+  useEffect(() => {
+    if (!open) return
+    const root = document.documentElement
+    root.setAttribute('data-settings-open', '')
+    return () => { root.removeAttribute('data-settings-open') }
+  }, [open])
+
   // The ledger tick keeps the nav rows fresh: registrants re-register with
   // freshly localized text on locale change, and the trigger/header/close
   // seats re-render through their own outlets' subscriptions.
