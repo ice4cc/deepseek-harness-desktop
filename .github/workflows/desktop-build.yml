@@ -1,0 +1,69 @@
+# Build the Electron desktop shell (apps/desktop) into installers on each
+# native platform. The packaging script stages a self-contained production
+# installation of @deepseek-ai/dsh (pnpm deploy + isolated-store repair, see
+# apps/desktop/scripts/package.mjs) and then runs electron-builder against the
+# current platform. Runs on every master push and manually via dispatch.
+name: Build desktop app
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # CI runs must never report to the production telemetry endpoint baked
+  # into apps/cli/cordis.yml (AppCLIEntry disables the row when set).
+  DSH_TELEMETRY_DISABLED: '1'
+  # No signing identity or notarization credentials in CI; skip discovery
+  # so electron-builder does not fail looking for a certificate.
+  CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+jobs:
+  package:
+    name: ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos
+            runner: macos-latest
+            flag: --mac
+          - platform: windows
+            runner: windows-latest
+            flag: --win
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install (immutable)
+        run: pnpm install --frozen-lockfile
+
+      # package.mjs verifies apps/cli/lib/bin.js and apps/web/dist/index.html
+      # before staging the deploy, so the full build must run first.
+      - name: Build the dsh web profile
+        run: pnpm run build
+
+      - name: Package the desktop app
+        run: pnpm --filter @deepseek-ai/dsh-desktop run package -- ${{ matrix.flag }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dsh-desktop-${{ matrix.platform }}
+          path: apps/desktop/dist/**
+          if-no-files-found: error
+          retention-days: 7
