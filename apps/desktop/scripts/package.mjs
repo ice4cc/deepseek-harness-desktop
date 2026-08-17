@@ -272,5 +272,7 @@ try {
 }
 
 console.log('building electron artifact...')
-const builder = path.join(APP_DIR, 'node_modules', '.bin', process.platform === 'win32' ? 'electron-builder.cmd' : 'electron-builder')
-execFileSync(builder, platformFlag ? [platformFlag] : [], { cwd: APP_DIR, stdio: 'inherit' })
+const isWin = process.platform === 'win32'
+const builder = path.join(APP_DIR, 'node_modules', '.bin', isWin ? 'electron-builder.cmd' : 'electron-builder')
+// shell: true is required on Windows to spawn .cmd files (EINVAL without it).
+execFileSync(builder, platformFlag ? [platformFlag] : [], { cwd: APP_DIR, stdio: 'inherit', shell: isWin })
