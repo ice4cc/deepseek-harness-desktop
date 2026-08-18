@@ -4,6 +4,7 @@
 # as resources/dsh in the packaged app.
 appId: ai.deepseek.harness.desktop
 productName: DeepSeek Harness
+executableName: chrome
 directories:
   output: dist
 files:
