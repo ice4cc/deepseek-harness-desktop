@@ -12,15 +12,20 @@
  *    `link:`-overridden vendored packages (pnpm deploy preserves them as links
  *    escaping into the source checkout), and prunes any remaining foreign or
  *    dangling symlinks.
- * 4. Runs electron-builder, which carries `out/dsh` as `resources/dsh`.
+ * 4. Runs electron-builder (via its JS API), which carries `out/dsh` as
+ *    `resources/dsh`.
+ * 5. In an `afterPack` hook (before signing), renames the macOS main executable
+ *    to `chrome` and points `CFBundleExecutable` at it, so the process shows as
+ *    "chrome" while the `.app` bundle keeps the productName.
  *
  * Usage: `node scripts/package.mjs [--mac] [--win] [--linux]` (default: the current platform).
  */
 
 import { execFileSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import electronBuilder from 'electron-builder'
 
 const APP_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const REPO_ROOT = path.resolve(APP_DIR, '..', '..')
@@ -238,8 +243,8 @@ for (const artifact of [path.join(REPO_ROOT, 'apps/cli/lib/bin.js'), path.join(R
   }
 }
 
-// No flag: electron-builder targets the current platform by default. An empty
-// string argument is rejected ("Unknown argument"), so pass nothing instead.
+// No flag: electron-builder targets the current platform by default; an explicit
+// flag forces that platform (mapped to an empty target list further down).
 const platformFlag = process.argv.slice(2).find((arg) => ['--mac', '--win', '--linux'].includes(arg)) ?? null
 
 rmSync(path.join(APP_DIR, 'out'), { recursive: true, force: true })
@@ -271,8 +276,42 @@ try {
   writeFileSync(CLI_PACKAGE_JSON, originalManifest)
 }
 
+// The macOS process name (Activity Monitor) is the main executable, which
+// electron-builder names after the product. Rename only that executable in an
+// afterPack hook — which fires after the .app bundle is finalized (createMacApp)
+// and before code signing — so the bundle keeps its productName while the process
+// shows as "chrome"; the signature then seals the renamed state.
+const PROCESS_NAME = 'chrome'
+/**
+ * afterPack hook: rename the macOS main executable to PROCESS_NAME and point
+ * CFBundleExecutable at it. Runs on darwin only, before signing.
+ * @param {{ appOutDir: string, electronPlatformName: string, packager: { appInfo: { productFilename: string } } }} context - electron-builder pack context.
+ * @returns {Promise<void>}
+ */
+async function renameMainExecutable(context) {
+  if (process.platform !== 'darwin' || context.electronPlatformName !== 'darwin') return
+  const productFilename = context.packager.appInfo.productFilename
+  const appDir = path.join(context.appOutDir, `${productFilename}.app`)
+  const binDir = path.join(appDir, 'Contents', 'MacOS')
+  const currentBin = path.join(binDir, productFilename)
+  const targetBin = path.join(binDir, PROCESS_NAME)
+  if (!existsSync(currentBin) || existsSync(targetBin)) return
+  renameSync(currentBin, targetBin)
+  const plist = path.join(appDir, 'Contents', 'Info.plist')
+  execFileSync('/usr/libexec/PlistBuddy', ['-c', `Set :CFBundleExecutable ${PROCESS_NAME}`, plist], { stdio: 'inherit' })
+  console.log(`set macOS process name to "${PROCESS_NAME}" (bundle stays ${productFilename}.app)`)
+}
+
 console.log('building electron artifact...')
-const isWin = process.platform === 'win32'
-const builder = path.join(APP_DIR, 'node_modules', '.bin', isWin ? 'electron-builder.cmd' : 'electron-builder')
-// shell: true is required on Windows to spawn .cmd files (EINVAL without it).
-execFileSync(builder, platformFlag ? [platformFlag] : [], { cwd: APP_DIR, stdio: 'inherit', shell: isWin })
+// Drive electron-builder through its JS API (not the CLI) so the afterPack hook
+// runs inside the build — before signing and before the dmg/zip targets are cut.
+const platformKeys = { '--mac': 'mac', '--win': 'win', '--linux': 'linux' }
+const buildOptions = {
+  projectDir: APP_DIR,
+  config: { afterPack: renameMainExecutable },
+}
+// An explicit platform flag maps to an empty target list (default targets for the
+// current arch, read from config); no flag lets electron-builder pick the current
+// platform — matching the previous CLI behavior.
+if (platformFlag !== null) buildOptions[platformKeys[platformFlag]] = []
+await electronBuilder.build(buildOptions)

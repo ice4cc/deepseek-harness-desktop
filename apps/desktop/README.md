@@ -29,7 +29,7 @@ On macOS the window hides the OS caption bar (`titleBarStyle: 'hiddenInset'`, `a
 - **Traffic-light clearance** — the sidebar brand row becomes two lines: the collapse/expand toggle pinned at the traffic-light height (line 1), the full-width wordmark below it (line 2).
 - **Zero-width collapse** — a collapsed sidebar takes zero width instead of the stock 56 px rail; its vertical menu items are hidden. Plain browsers keep the bordered rail.
 - **Persistent floating toggle** — one button, portaled into the frame's overlay layer at one coordinate in both states. A fixed-position escapee of the zero-width column is not reliably carved out of the browser process's cached drag regions (real clicks land on the conversation strip's drag area: single click drags the window, double click zooms it); portaling into the unclipped full-viewport layer restores reliable hit-testing, and one persistent node means collapse/expand swaps no DOM.
-- **Window drag regions** — the conversation column's top strip moves the window (the blank-draft hero sheet, or the session header row once a session is open), as does the sidebar brand row; interactive descendants stay no-drag. Full-viewport modal layers declare `no-drag` for the whole layer while open: Chromium routes a click to the window whenever it falls inside a drag rectangle that no explicit no-drag element carves out, and the centered panels overlap the header strip's rectangle (the session header row includes the tab bar, so its box reaches ~68 px down — under the panel's close button and header actions).
+- **Window drag regions** — the conversation column's top strip moves the window (the blank-draft hero sheet, or the session header row once a session is open), as does the sidebar brand row; interactive descendants stay no-drag. Chromium routes a click to the window whenever it falls inside a cached drag rectangle that no explicit no-drag element carves out, and an element in a different tree branch (a menu list portaled to `document.body`, a modal layer) cannot carve the strip's own rectangle. Full-viewport modal layers declare `no-drag` for the whole layer while open — the centered panels overlap the header strip's rectangle (the session header row includes the tab bar, so its box reaches ~68 px down — under the panel's close button and header actions). A small portaled menu cannot cover its strips: while any portaled menu is open, `ui-primitives` Menu flags `<html data-portal-menu-open>` (refcounted), and every drag strip yields `no-drag` for the flag's lifetime — without this, the preset-mode menu's rows hanging below the hero input card swallow every click into the window instead of selecting the mode.
 
 Plain browser loads carry no marker and keep the stock layout (`-webkit-app-region` is inert outside Electron). The pre-paint `backgroundColor` is the dark base token; theme following of the window surface is deferred.
 
@@ -43,6 +43,8 @@ Plain browser loads carry no marker and keep the stock layout (`-webkit-app-regi
 4. **Foreign-link pruning** — any symlink that does not resolve inside the deployment is removed; electron-builder stats every file it copies and fails on a dangling one.
 
 The main process resolves the bin at `resources/dsh/lib/bin.js` when `app.isPackaged` (plain Node launch — no tsx needed). See the `package` script of this package's `package.json`.
+
+**Process name on macOS.** electron-builder's `executableName` drives *both* the `.app` bundle name and the main executable, so a bare `executableName: chrome` would also ship `chrome.app`. Instead the bundle keeps `productName` (`DeepSeek Harness.app`), and `scripts/package.mjs` drives electron-builder through its JS API with an `afterPack` hook that renames only the main executable to `chrome` (and points `CFBundleExecutable` at it) *before* code signing seals the state. Activity Monitor then shows `chrome`, while Finder, the Dock, and the About box show `DeepSeek Harness`.
 
 To verify a packaged build from a shell, unset `ELECTRON_RUN_AS_NODE` first: with that variable set, the app binary runs as plain Node and exits silently without starting the GUI.
 
@@ -59,11 +61,12 @@ This app is additive (`apps/desktop/` only), so merges conflict only where it in
 | root `package.json` | `desktop:dev`, `desktop:package` scripts | convenience entry points |
 | `apps/web/src/main.ts` | `?shell=desktop` marker detection (tags `<html data-shell="desktop">`) | window integration — see above |
 | `packages/client/ui-layout/.../AppFrame.tsx` + `.module.css` | zero-width collapsed-sidebar track on desktop; no border seam while collapsed | window integration — see above |
-| `packages/client/ui-sidebar/.../SidebarRoot.tsx` + `.module.css` | persistent portaled toggle, two-line brand row, hidden menu items when collapsed | window integration — see above |
+| `packages/client/ui-sidebar/.../SidebarRoot.tsx` + `.module.css` | persistent portaled toggle, two-line brand row, hidden menu items when collapsed; brand row yields `no-drag` while `<html data-portal-menu-open>` holds | window integration — see above |
 | `packages/client/ui-sidebar/package.json` | `react-dom` dependency (+ `@types/react-dom`) for the portal import | window integration — see above |
-| `packages/client/ui-conversation/.../ConversationRoot.module.css` | appended `data-shell`-keyed block (hero + session-header drag regions) | window integration — see above |
+| `packages/client/ui-conversation/.../ConversationRoot.module.css` | appended `data-shell`-keyed block (hero + session-header drag regions); strips yield `no-drag` while `<html data-portal-menu-open>` holds | window integration — see above |
 | `packages/client/ui-settings-general/.../SettingsRoot.module.css` | settings panel layer is `no-drag` while open (drag-strip carve-out) | window integration — see above |
 | `packages/client/ui-primitives/.../Modal.module.css`, `OnboardingSurface.module.css` | modal + first-run stage layers are `no-drag` while open (same carve-out) | window integration — see above |
+| `packages/client/ui-primitives/src/Menu.tsx` + `tests/atoms.client.spec.tsx` | open portaled menu flags `<html data-portal-menu-open>` for its lifetime (refcounted), the drag-strip yield signal | window integration — see above |
 
 If upstream adds the same `paths` entries or scripts independently, drop the local copy on merge. The web-side patches are appended blocks and a few inserted lines; on merge conflict, keep the local version unless upstream ships its own desktop-shell layout.
 
