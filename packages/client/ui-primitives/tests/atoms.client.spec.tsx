@@ -335,6 +335,27 @@ describe('Menu', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  it('flags <html data-portal-menu-open> for the open portal lifetime so desktop drag strips yield', () => {
+    const html = document.documentElement
+    expect(html.hasAttribute('data-portal-menu-open')).toBe(false)
+    // Non-portal lists render inside their own branch and carve their own
+    // no-drag from the strip; the flag is portal-only.
+    const inPlace = render(
+      <Menu open anchor={<span>trigger</span>} items={items} onSelect={() => {}} onClose={() => {}} />)
+    expect(html.hasAttribute('data-portal-menu-open')).toBe(false)
+    inPlace.unmount()
+    const first = render(
+      <Menu portal open anchor={<span>one</span>} items={items} onSelect={() => {}} onClose={() => {}} />)
+    expect(html.hasAttribute('data-portal-menu-open')).toBe(true)
+    const second = render(
+      <Menu portal open anchor={<span>two</span>} items={items} onSelect={() => {}} onClose={() => {}} />)
+    // Refcounted: closing one open portal menu keeps the flag for the other.
+    first.unmount()
+    expect(html.hasAttribute('data-portal-menu-open')).toBe(true)
+    second.unmount()
+    expect(html.hasAttribute('data-portal-menu-open')).toBe(false)
+  })
+
   it('portal mode resolves align=end / side=top to clamped left/top coordinates', () => {
     render(
       <Menu portal open align="end" side="top" anchor={<span>trigger</span>} items={items} onSelect={() => {}} onClose={() => {}} />)

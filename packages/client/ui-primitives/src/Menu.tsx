@@ -57,6 +57,20 @@ function isLabel(entry: MenuEntry): entry is MenuLabel {
 const MEASURE_STYLE: CSSProperties = { visibility: 'hidden', left: 0, top: 0 }
 
 /**
+ * Open portal-menu count. Desktop window drag strips cache their drag
+ * rectangles in the browser process and route a mousedown inside one to the
+ * window even when a portaled list paints above it; a list portaled into
+ * `document.body` sits in a different tree branch and cannot carve the strip's
+ * own cached rectangle. An open portal menu therefore flags `<html
+ * data-portal-menu-open>` for its lifetime, and each desktop drag strip yields
+ * (`-webkit-app-region: no-drag`) in its own module CSS while the flag holds —
+ * the same yield pattern the settings dialog uses with `data-settings-open`.
+ * Refcounted so two concurrently open portal menus do not unflag each other.
+ * A plain web shell has no drag strips and ignores the flag.
+ */
+let portalMenuOpenCount = 0
+
+/**
  * Render an anchored dropdown menu.
  * @param props.open - whether the list is showing (owner-controlled).
  * @param props.anchor - the trigger element (rendered in place).
@@ -163,6 +177,20 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
       window.removeEventListener('resize', place)
     }
   }, [open, portal, align, side, getAnchorRect])
+
+  // Flag the document while a portal menu is open so the desktop shell's drag
+  // strips yield for its lifetime (see portalMenuOpenCount).
+  useEffect(() => {
+    if (!open || !portal) return
+    portalMenuOpenCount++
+    document.documentElement.setAttribute('data-portal-menu-open', '')
+    return () => {
+      portalMenuOpenCount--
+      if (portalMenuOpenCount === 0) {
+        document.documentElement.removeAttribute('data-portal-menu-open')
+      }
+    }
+  }, [open, portal])
 
   useEffect(() => {
     if (!open) {

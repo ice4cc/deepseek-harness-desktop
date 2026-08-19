@@ -299,10 +299,13 @@
   -webkit-app-region: no-drag;
 }
 
-/* Wide mode only: the open settings dialog (ui-settings-general flags <html
-   data-settings-open>) paints its nav rail inside this strip's cached drag
-   rectangle, so the strip yields for the dialog's lifetime. */
-:global(html[data-shell='desktop'][data-settings-open]) .logoRow {
+/* Wide mode only: overlays that paint inside this strip's cached drag
+   rectangle — the open settings dialog (ui-settings-general flags <html
+   data-settings-open>) and any open portaled menu (ui-primitives Menu flags
+   <html data-portal-menu-open>; a body-portal list is in a different tree
+   branch and cannot carve the strip's own rectangle) — make the strip yield
+   for their lifetime. */
+:global(html[data-shell='desktop']:is([data-settings-open], [data-portal-menu-open])) .logoRow {
   -webkit-app-region: no-drag;
 }
 
