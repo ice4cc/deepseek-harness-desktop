@@ -267,6 +267,11 @@
     - id: ui-plan
       name: '@deepseek-ai/dsh-client-ui-plan'
 
+    # Think-tag control: the composer tool-row seat rewriting the draft's
+    # trailing <|think_*|> tag (stripped by the chat template at render).
+    - id: ui-think-tag
+      name: '@deepseek-ai/dsh-client-ui-think-tag'
+
     - id: ui-user-questions
       name: '@deepseek-ai/dsh-client-ui-user-questions'
 

@@ -24,5 +24,9 @@
 - button "Commands" [disabled]:
   - img
 - 'button "Access mode, current: Custom" [disabled]': Custom
+- button "Thinking effort selector":
+  - img
+  - text: Session default
+  - img
 - button "Stop generating"
 - button "Send message" [disabled]
