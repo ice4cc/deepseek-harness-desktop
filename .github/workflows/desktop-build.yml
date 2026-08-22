@@ -67,3 +67,7 @@ jobs:
           path: apps/desktop/dist/**
           if-no-files-found: error
           retention-days: 7
+          # The dsh runtime ships dotfiles that module resolution depends on
+          # (e.g. @earendil-works/pi-ai imports dist/providers/data/.manifest.json
+          # at boot); the default false drops them from the artifact zip.
+          include-hidden-files: true

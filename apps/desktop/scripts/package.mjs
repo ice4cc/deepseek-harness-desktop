@@ -10,8 +10,10 @@
  * 3. Repairs the isolated store layout for the plain-Node runtime: flattens every
  *    store-only package into a top-level node_modules link, materializes the
  *    `link:`-overridden vendored packages (pnpm deploy preserves them as links
- *    escaping into the source checkout), and prunes any remaining foreign or
- *    dangling symlinks.
+ *    escaping into the source checkout), prunes any remaining foreign or dangling
+ *    symlinks, and finally converts every remaining link into a plain copy of its
+ *    target and drops the `.pnpm` store — the packaged node_modules is a flat tree
+ *    of plain files, which zip/NSIS/asar all carry without symlink support.
  * 4. Runs electron-builder (via its JS API), which carries `out/dsh` as
  *    `resources/dsh`.
  * 5. In an `afterPack` hook (before signing), renames the macOS main executable
@@ -22,7 +24,7 @@
  */
 
 import { execFileSync } from 'node:child_process'
-import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import electronBuilder from 'electron-builder'
@@ -172,50 +174,46 @@ function materializeLinkedPackages(deployDir) {
 }
 
 /**
- * On Windows, electron-builder's copyDir does not follow symlinks/junctions
- * correctly, so packages that are only reachable through symlinks (like the
- * top-level flattened node_modules entries) end up missing from the artifact.
- * This function converts every symlink to a real directory by copying the
- * target's content, making the layout fully materialized for the Windows
- * build. Only run this when targeting Windows.
+ * Replace every remaining symlink with a plain copy of its target
+ * (dereferenced, so nested links inside a copied package are expanded too),
+ * then remove the `.pnpm` store the links pointed into. flattenNodeModules
+ * links every store package into the top level, so after this pass the tree
+ * is a flat layout of plain directories: zip archives, NSIS, and asar all
+ * preserve plain files but not symlinks or junctions, and a distributed
+ * artifact must not depend on either.
  * @param {string} nodeModulesDir - directory to materialize.
- * @returns {number} number of symlinks converted.
+ * @returns {number} number of links materialized.
  */
 function materializeSymlinks(nodeModulesDir) {
-  let converted = 0
+  let materialized = 0
+  const materializeLink = (full) => {
+    try {
+      const target = realpathSync(full)
+      const tmp = `${full}.tmp-${Date.now()}-${materialized}`
+      cpSync(target, tmp, { recursive: true, dereference: true })
+      rmSync(full, { force: true })
+      renameSync(tmp, full)
+      materialized++
+    } catch {
+      rmSync(full, { force: true }) // dangling link
+    }
+  }
   const walk = (dir) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, entry.name)
       if (entry.isSymbolicLink()) {
-        try {
-          const target = realpathSync(full)
-          const stat = lstatSync(target)
-          if (stat.isDirectory()) {
-            // Copy the directory content and replace the symlink.
-            const tmp = `${full}.tmp-${Date.now()}`
-            cpSync(target, tmp, { recursive: true })
-            rmSync(full, { force: true })
-            renameSync(tmp, full)
-            converted++
-          } else {
-            // Copy the file and replace the symlink.
-            const tmp = `${full}.tmp-${Date.now()}`
-            cpSync(target, tmp)
-            rmSync(full, { force: true })
-            renameSync(tmp, full)
-            converted++
-          }
-        } catch {
-          // Dangling link — remove it.
-          rmSync(full, { force: true })
-        }
-      } else if (entry.isDirectory()) {
+        materializeLink(full)
+      } else if (entry.isDirectory() && !(dir === nodeModulesDir && entry.name === '.pnpm')) {
+        // The store is pruned after the walk; every package in it is already
+        // reachable through the top-level links, so its internal links need
+        // no materialization.
         walk(full)
       }
     }
   }
   walk(nodeModulesDir)
-  return converted
+  rmSync(path.join(nodeModulesDir, '.pnpm'), { recursive: true, force: true })
+  return materialized
 }
 
 /**
@@ -317,16 +315,14 @@ try {
   if (materialized.packages > 0) {
     console.log(`materialized ${String(materialized.packages)} link-overridden packages (${String(materialized.redirected)} links redirected)`)
   }
-  // On Windows, electron-builder's copyDir does not follow symlinks/junctions
-// correctly, so packages that are only reachable through symlinks end up
-// missing from the artifact. Materialize every symlink to a real directory
-// BEFORE pruning, so the pruner only sees real files.
-if (process.platform === 'win32') {
-  const materialized = materializeSymlinks(path.join(DEPLOY_DIR, 'node_modules'))
-  if (materialized > 0) console.log(`materialized ${String(materialized)} symlinks for Windows compatibility`)
-}
-const pruned = pruneForeignSymlinks(DEPLOY_DIR, path.join(DEPLOY_DIR, 'node_modules'))
-if (pruned > 0) console.log(`removed ${String(pruned)} foreign or dangling symlinks from node_modules`)
+  const pruned = pruneForeignSymlinks(DEPLOY_DIR, path.join(DEPLOY_DIR, 'node_modules'))
+  if (pruned > 0) console.log(`removed ${String(pruned)} foreign or dangling symlinks from node_modules`)
+  // After pruning, every remaining link resolves inside the deployment.
+  // Materialize them into plain files and drop the store so the packaged
+  // node_modules is a flat tree of plain files (no symlinks or junctions
+  // for the artifact toolchain to mishandle on any platform).
+  const plainFiles = materializeSymlinks(path.join(DEPLOY_DIR, 'node_modules'))
+  if (plainFiles > 0) console.log(`materialized ${String(plainFiles)} symlinks into plain files`)
 } finally {
   writeFileSync(CLI_PACKAGE_JSON, originalManifest)
 }
