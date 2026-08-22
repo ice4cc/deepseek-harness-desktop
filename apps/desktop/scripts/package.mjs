@@ -22,7 +22,7 @@
  */
 
 import { execFileSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import electronBuilder from 'electron-builder'
@@ -172,6 +172,53 @@ function materializeLinkedPackages(deployDir) {
 }
 
 /**
+ * On Windows, electron-builder's copyDir does not follow symlinks/junctions
+ * correctly, so packages that are only reachable through symlinks (like the
+ * top-level flattened node_modules entries) end up missing from the artifact.
+ * This function converts every symlink to a real directory by copying the
+ * target's content, making the layout fully materialized for the Windows
+ * build. Only run this when targeting Windows.
+ * @param {string} nodeModulesDir - directory to materialize.
+ * @returns {number} number of symlinks converted.
+ */
+function materializeSymlinks(nodeModulesDir) {
+  let converted = 0
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name)
+      if (entry.isSymbolicLink()) {
+        try {
+          const target = realpathSync(full)
+          const stat = lstatSync(target)
+          if (stat.isDirectory()) {
+            // Copy the directory content and replace the symlink.
+            const tmp = `${full}.tmp-${Date.now()}`
+            cpSync(target, tmp, { recursive: true })
+            rmSync(full, { force: true })
+            renameSync(tmp, full)
+            converted++
+          } else {
+            // Copy the file and replace the symlink.
+            const tmp = `${full}.tmp-${Date.now()}`
+            cpSync(target, tmp)
+            rmSync(full, { force: true })
+            renameSync(tmp, full)
+            converted++
+          }
+        } catch {
+          // Dangling link — remove it.
+          rmSync(full, { force: true })
+        }
+      } else if (entry.isDirectory()) {
+        walk(full)
+      }
+    }
+  }
+  walk(nodeModulesDir)
+  return converted
+}
+
+/**
  * Remove every symlink that does not resolve to a path inside the deployment.
  * pnpm's deploy preserves the workspace's `link:vendor/*` overrides as links
  * escaping back into the source checkout (dangling on any other machine), and
@@ -270,8 +317,16 @@ try {
   if (materialized.packages > 0) {
     console.log(`materialized ${String(materialized.packages)} link-overridden packages (${String(materialized.redirected)} links redirected)`)
   }
-  const pruned = pruneForeignSymlinks(DEPLOY_DIR, path.join(DEPLOY_DIR, 'node_modules'))
-  if (pruned > 0) console.log(`removed ${String(pruned)} foreign or dangling symlinks from node_modules`)
+  // On Windows, electron-builder's copyDir does not follow symlinks/junctions
+// correctly, so packages that are only reachable through symlinks end up
+// missing from the artifact. Materialize every symlink to a real directory
+// BEFORE pruning, so the pruner only sees real files.
+if (process.platform === 'win32') {
+  const materialized = materializeSymlinks(path.join(DEPLOY_DIR, 'node_modules'))
+  if (materialized > 0) console.log(`materialized ${String(materialized)} symlinks for Windows compatibility`)
+}
+const pruned = pruneForeignSymlinks(DEPLOY_DIR, path.join(DEPLOY_DIR, 'node_modules'))
+if (pruned > 0) console.log(`removed ${String(pruned)} foreign or dangling symlinks from node_modules`)
 } finally {
   writeFileSync(CLI_PACKAGE_JSON, originalManifest)
 }
