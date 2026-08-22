@@ -48,6 +48,10 @@ macOS 上窗口隐藏系统标题栏（`titleBarStyle: 'hiddenInset'`、`acceptF
 
 从 shell 验证打包构建前，先 unset `ELECTRON_RUN_AS_NODE`：该变量存在时，应用二进制会以 plain Node 方式运行并静默退出，不会启动 GUI。
 
+## 应用图标
+
+`assets/app-icon/mark.svg` 是 DeepSeek 标志（LobeHub 图标集，MIT）。`scripts/generate-icons.mjs` 把它渲染成 electron-builder 的构建资源（`build/`）：`icon.icns`（1024 画布上的 824×824 圆角方砖，Big Sur 图标网格）、`icon.ico`（全幅方形，16–256 的 PNG 条目）和 `icon.png`（512 方形，Linux）——各变体均为应用深色底（#151517）上的白色标志。用 `pnpm --filter @deepseek-ai/dsh-desktop run icons` 重新生成；`icns` 步骤需要 macOS（`iconutil`），因此生成产物已提交，跨平台打包无需重新构建。
+
 ## 上游同步
 
 `upstream` remote 跟踪 `deepseek-ai/deepseek-harness`（默认分支 `master`）。用 `git fetch upstream && git merge upstream/master` 同步，然后跑验证阶梯：`pnpm run test:gui` → `DSH_SNAPSHOT=replay pnpm run test:web` → dev 模式启动本应用。

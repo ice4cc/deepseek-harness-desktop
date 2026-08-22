@@ -48,6 +48,10 @@ The main process resolves the bin at `resources/dsh/lib/bin.js` when `app.isPack
 
 To verify a packaged build from a shell, unset `ELECTRON_RUN_AS_NODE` first: with that variable set, the app binary runs as plain Node and exits silently without starting the GUI.
 
+## App icons
+
+`assets/app-icon/mark.svg` is the DeepSeek mark (LobeHub icon set, MIT). `scripts/generate-icons.mjs` renders it into the electron-builder build resources under `build/`: `icon.icns` (824×824 rounded tile on the 1024 canvas, Big Sur icon grid), `icon.ico` (full-bleed square, PNG entries 16–256), and `icon.png` (512 square for Linux) — a white mark on the app's dark base token (#151517) in every variant. Regenerate with `pnpm --filter @deepseek-ai/dsh-desktop run icons`; the `icns` step needs macOS (`iconutil`), so the generated artifacts are committed and cross-platform packaging does not have to rebuild them.
+
 ## Upstream sync
 
 The `upstream` remote tracks `deepseek-ai/deepseek-harness` (default branch `master`). Sync with `git fetch upstream && git merge upstream/master`, then run the verify ladder: `pnpm run test:gui` → `DSH_SNAPSHOT=replay pnpm run test:web` → launch this app in dev mode.

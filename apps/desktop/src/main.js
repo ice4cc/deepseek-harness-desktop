@@ -234,6 +234,10 @@ function createWindow(url) {
     // The dark base token (neutral-bluish-950): avoids a white flash before
     // the first page paint. Theme following is deferred.
     backgroundColor: '#151517',
+    // Taskbar/window icon on Windows and Linux. macOS takes its Dock icon
+    // from the app bundle (build/icon.icns); without this, dev builds on the
+    // other platforms would show the default Electron icon.
+    ...(process.platform !== 'darwin' ? { icon: path.join(SRC_DIR, '..', 'build', 'icon.png') } : {}),
     // macOS hides the OS caption bar; the traffic lights inset over the page's
     // own top strip (the sidebar brand row and the conversation header carry
     // the desktop-shell layout through `?shell=desktop`). Windows keeps the
