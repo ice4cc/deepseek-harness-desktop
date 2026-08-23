@@ -11,19 +11,19 @@
   height: 28px;
   padding: 0 8px;
   border: none;
-  border-radius: var(--dsw-radius-md, 6px);
+  border-radius: 6px;
   background: transparent;
-  color: var(--dsw-text-secondary, inherit);
+  color: var(--dsw-alias-label-secondary);
   font-size: 12px;
   cursor: pointer;
 }
 
 .trigger:hover {
-  background: var(--dsw-bg-hover, rgba(128, 128, 128, 0.12));
+  background: var(--dsw-alias-interactive-bg-hover);
 }
 
 .trigger:focus-visible {
-  outline: 2px solid var(--dsw-focus-ring, currentColor);
+  outline: 2px solid var(--dsw-alias-border-l3);
   outline-offset: 1px;
 }
 
@@ -35,8 +35,8 @@
 }
 
 .active {
-  color: var(--dsw-text-primary, inherit);
-  background: var(--dsw-bg-active, rgba(128, 128, 128, 0.18));
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-interactive-bg-active);
 }
 
 .menu {
@@ -46,10 +46,12 @@
   z-index: 10;
   min-width: 220px;
   padding: 4px;
-  border-radius: var(--dsw-radius-lg, 8px);
-  background: var(--dsw-bg-elevated, #1e1e1e);
-  border: 1px solid var(--dsw-border, rgba(128, 128, 128, 0.25));
-  box-shadow: var(--dsw-shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.4));
+  /* Surface tokens match the Menu card material (ui-model-selection's
+     dropdown) so every composer dropdown reads as the same surface. */
+  border-radius: 8px;
+  background: var(--dsw-specific-menu);
+  border: 1px solid var(--dsw-alias-border-inverted);
+  box-shadow: var(--dsw-shadow-lv3);
 }
 
 .item {
@@ -60,16 +62,16 @@
   width: 100%;
   padding: 7px 10px;
   border: none;
-  border-radius: var(--dsw-radius-md, 6px);
+  border-radius: 6px;
   background: transparent;
-  color: var(--dsw-text-primary, inherit);
+  color: var(--dsw-alias-label-primary);
   font-size: 13px;
   text-align: left;
   cursor: pointer;
 }
 
 .item:hover {
-  background: var(--dsw-bg-hover, rgba(128, 128, 128, 0.12));
+  background: var(--dsw-alias-interactive-bg-hover);
 }
 
 .itemText {
@@ -85,6 +87,6 @@
 
 .desc {
   font-size: 11px;
-  color: var(--dsw-text-tertiary, rgba(128, 128, 128, 0.9));
+  color: var(--dsw-alias-label-tertiary);
   white-space: nowrap;
 }
