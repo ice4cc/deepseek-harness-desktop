@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-23-settings-appearance-chat-width.md
+2026-08-23-settings-appearance-chat-width.md: 4644fd090e0d097b360b2b144f4bf7dc340b2946
+2026-08-23-settings-appearance-chat-width.zh.md: 7e360da9602256250c720b0a5e03dc32cc2d80a7
