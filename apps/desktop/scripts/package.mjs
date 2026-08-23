@@ -1,7 +1,9 @@
 /**
  * Stage and package the desktop app.
  *
- * 1. Verifies the dsh build artifacts exist (`pnpm run build` from the repo root).
+ * 1. Verifies the dsh build artifacts exist and carry the official client
+ *    profile (`pnpm run build:official` from the repo root): a default-profile
+ *    build would ship the local "DSH Local Build" mark in the packaged GUI.
  * 2. Deploys a self-contained production installation of @deepseek-ai/dsh into
  *    `out/dsh` via `pnpm deploy --legacy --prod` (real node_modules, no workspace links).
  *    Packages that the closure references only as peerDependencies are invisible to
@@ -286,6 +288,16 @@ for (const artifact of [path.join(REPO_ROOT, 'apps/cli/lib/bin.js'), path.join(R
     console.error(`missing build artifact ${artifact}; run \`pnpm run build\` from the repository root first`)
     process.exit(1)
   }
+}
+
+// The packaged GUI must ship release branding: a default-profile build embeds
+// no DSH_CLIENT_BUILD_PROFILE and renders "DSH Local Build". The verifier
+// checks the client build record and exits non-zero when it is not official.
+try {
+  execFileSync(process.execPath, [path.join(APP_DIR, 'scripts', 'verify-official-build.mjs')], { stdio: 'inherit' })
+} catch {
+  // Spawn failure or a non-zero verifier exit — the verifier already printed why.
+  process.exit(1)
 }
 
 // No flag: electron-builder targets the current platform by default; an explicit
