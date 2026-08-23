@@ -54,9 +54,11 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # package.mjs verifies apps/cli/lib/bin.js and apps/web/dist/index.html
-      # before staging the deploy, so the full build must run first.
-      - name: Build the dsh web profile
-        run: pnpm run build
+      # before staging the deploy, so the full build must run first; the official
+      # profile embeds release branding (a default-profile build would ship the
+      # "DSH Local Build" mark, which the packaging gate rejects).
+      - name: Build the dsh web profile (official)
+        run: pnpm run build:official
 
       - name: Package the desktop app
         run: pnpm --filter @deepseek-ai/dsh-desktop run package -- ${{ matrix.flag }}
