@@ -4,12 +4,13 @@
 # as resources/dsh in the packaged app.
 appId: ai.deepseek.harness.desktop
 productName: DeepSeek Harness
-# No `executableName` here: on macOS it drives BOTH the `.app` bundle name and
-# the main executable, so a "chrome" process name would also ship chrome.app.
+# No top-level `executableName`: on macOS it drives BOTH the `.app` bundle name
+# and the main executable, so a "chrome" process name would also ship chrome.app.
 # The bundle keeps productName ("DeepSeek Harness.app"); scripts/package.mjs
 # renames only the main executable to "chrome" in an afterPack hook (before
 # signing) so Activity Monitor shows "chrome" while Finder/Dock show
-# "DeepSeek Harness".
+# "DeepSeek Harness". Windows gets the same process name through the platform-
+# scoped `win.executableName` below, where it drives only the exe name.
 directories:
   output: dist
 files:
@@ -36,6 +37,10 @@ mac:
     - zip
 win:
   icon: build/icon.ico
+  # Platform-scoped, so it drives only the Windows exe name (chrome.exe — Task
+  # Manager shows "chrome", matching the macOS afterPack rename). The installer
+  # artifact and uninstall display name keep productName.
+  executableName: chrome
   target:
     - nsis
 linux:

@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-dsh web GUI 之上的 Electron 桌面壳（Mode A：回环 HTTP）。主进程以子 Node 进程方式拉起 `dsh` web profile（`web --port 0`，通过 Electron 自带二进制加 `ELECTRON_RUN_AS_NODE=1` 运行），等待文档约定的就绪行（`dsh web: http://127.0.0.1:<port>`），然后在单个 BrowserWindow 中加载该回环地址。GUI 由绑定到 127.0.0.1 的 `dsh-host-webserver` 服务；壳不增加任何协议面——页面与 dsh 之间走同源 HTTP/WebSocket，与浏览器中完全一致，因此所有 web 客户端包（以及全部基于插槽的 UI 定制）原样工作。
+dsh web GUI 之上的 Electron 桌面壳（Mode A：回环 HTTP）。主进程以子 Node 进程方式拉起 `dsh` web profile（`web --port 0 --no-open`——GUI 就在应用自己的窗口里，无需交给系统浏览器；通过 Electron 自带二进制加 `ELECTRON_RUN_AS_NODE=1` 运行），等待文档约定的就绪行（`dsh web: http://127.0.0.1:<port>`），然后在单个 BrowserWindow 中加载该回环地址。GUI 由绑定到 127.0.0.1 的 `dsh-host-webserver` 服务；壳不增加任何协议面——页面与 dsh 之间走同源 HTTP/WebSocket，与浏览器中完全一致，因此所有 web 客户端包（以及全部基于插槽的 UI 定制）原样工作。
 
 ## 从源码运行
 
@@ -11,7 +11,7 @@ pnpm run build                                  # builds apps/cli lib + frontend
 pnpm --filter @deepseek-ai/dsh-desktop run dev  # electron . over the repo checkout
 ```
 
-dev 布局通过 tsx **从源码**启动 dsh bin（`node --expose-internals --import <tsx> <repo>/apps/cli/src/bin.ts web --port 0`，加 `TSX_TSCONFIG_PATH=<repo>/tsconfig.json`）：pnpm 隔离的 checkout 无法向 plain Node 提供仓库裸 `@deepseek-ai/*` 包名，所以源码启动走 tsx 的 tsconfig-paths 解析——与无密钥 web smoke 使用同一契约。完整环境会被透传，因此 `DEEPSEEK_API_KEY`（或已配置的 provider）能到达宿主。
+dev 布局通过 tsx **从源码**启动 dsh bin（`node --expose-internals --import <tsx> <repo>/apps/cli/src/bin.ts web --port 0 --no-open`，加 `TSX_TSCONFIG_PATH=<repo>/tsconfig.json`）：pnpm 隔离的 checkout 无法向 plain Node 提供仓库裸 `@deepseek-ai/*` 包名，所以源码启动走 tsx 的 tsconfig-paths 解析——与无密钥 web smoke 使用同一契约。完整环境会被透传，因此 `DEEPSEEK_API_KEY`（或已配置的 provider）能到达宿主。
 
 cordis HMR 服务需要 `--expose-internals`：它依赖 Node 的内部 ESM 加载器，而在 Electron 自带 Node（RUN_AS_NODE 模式）下，plain 源码启动所依赖的 `node-addon-require-builtin` 回退不保证能加载。
 
@@ -24,7 +24,7 @@ cordis HMR 服务需要 `--expose-internals`：它依赖 Node 的内部 ESM 加�
 
 ## 窗口一体化
 
-macOS 上窗口隐藏系统标题栏（`titleBarStyle: 'hiddenInset'`、`acceptFirstMouse: true`），红绿灯内嵌到页面自绘的顶部条带中；Windows 保留原生窗口框。壳在加载 URL 上追加 `?shell=desktop`，`apps/web/src/main.ts` 据此给 `<html>` 打上 `data-shell="desktop"` 标记。以该属性为键的桌面专属布局规则（追加块与少量插入，位于 `ui-sidebar` SidebarRoot、`ui-layout` AppFrame、`ui-conversation` ConversationRoot 与模态层——`ui-settings-general` SettingsRoot 和 `ui-primitives` Modal/OnboardingSurface）：
+macOS 与 Windows 都隐藏系统标题栏，让页面自绘的顶部条带承载窗口：macOS 将红绿灯内嵌（`titleBarStyle: 'hiddenInset'`），Windows 只把原生最小化/最大化/关闭按钮浮在同一条 44 px 条带上（`titleBarStyle: 'hidden'` + `titleBarOverlay`）；Linux 保留原生窗口框与菜单栏。两个无边框平台都开启 `acceptFirstMouse`——点击未聚焦窗口直接生效而非仅激活（浮动展开按钮需要它）。Windows 去掉默认的内嵌菜单栏（`Menu.setApplicationMenu(null)`；macOS 保留屏幕顶部的系统菜单栏）——它所携带的快捷键（刷新、缩放、devtools）不属于产品面，源码启动保留 F12 作为窗口级 devtools 入口。Windows 覆盖层是实色的（WCO 不支持透明），因此初始取深色窗口表面，随后跟随页面解析出的主题：沙箱 preload（`src/preload.cjs`）暴露 `window.dshDesktop.setThemeColors`，web 入口的 desktop 分支在加载时以及主题重写 body 时上报计算后的 body 背景/文字色。壳在加载 URL 上追加 `?shell=desktop`，`apps/web/src/main.ts` 据此给 `<html>` 打上 `data-shell="desktop"` 标记。以该属性为键的桌面专属布局规则（追加块与少量插入，位于 `ui-sidebar` SidebarRoot、`ui-layout` AppFrame、`ui-conversation` ConversationRoot 与模态层——`ui-settings-general` SettingsRoot 和 `ui-primitives` Modal/OnboardingSurface）：
 
 - **红绿灯让位**——侧栏品牌行变为两行：第一行是钉在红绿灯高度的折叠/展开按钮，下方是全宽字标。
 - **零宽折叠**——收起的侧栏取零宽而非默认的 56 px 窄栏；其竖排菜单项被隐藏。纯浏览器保留带边框窄栏。
@@ -44,7 +44,7 @@ macOS 上窗口隐藏系统标题栏（`titleBarStyle: 'hiddenInset'`、`acceptF
 
 主进程在 `app.isPackaged` 时把 bin 解析为 `resources/dsh/lib/bin.js`（plain Node 启动——无需 tsx）。见本包 `package.json` 的 `package` 脚本。
 
-**macOS 上的进程名。** electron-builder 的 `executableName` 同时决定 `.app` 捆绑包名和主可执行文件，因此单独写 `executableName: chrome` 也会把捆绑包打成 `chrome.app`。改为让捆绑包保留 `productName`（`DeepSeek Harness.app`），由 `scripts/package.mjs` 通过 JS API 驱动 electron-builder，并用 `afterPack` 钩子仅把主可执行文件改名为 `chrome`（同时把 `CFBundleExecutable` 指向它），*在* 代码签名封存状态之前完成。于是活动监视器显示 `chrome`，而 Finder、Dock 和关于框显示 `DeepSeek Harness`。
+**进程名。** 打包后的主可执行文件在 macOS 与 Windows 上都叫 `chrome`，两个平台的进程列表读起来一致（dsh 子进程通过同一二进制运行，因此同名）。macOS 上 electron-builder 的顶层 `executableName` 同时决定 `.app` 捆绑包名和主可执行文件，因此单独写 `executableName: chrome` 也会把捆绑包打成 `chrome.app`；改为让捆绑包保留 `productName`（`DeepSeek Harness.app`），由 `scripts/package.mjs` 通过 JS API 驱动 electron-builder，并用 `afterPack` 钩子仅把主可执行文件改名为 `chrome`（同时把 `CFBundleExecutable` 指向它），*在* 代码签名封存状态之前完成。Windows 在 `electron-builder.yml` 的 `win.executableName` 上以平台作用域写同一个名字，那里它只决定 exe 名（`chrome.exe`）。于是活动监视器/任务管理器显示 `chrome`，而 Finder、Dock 和关于框——以及 Windows 的开始菜单项与卸载显示名——保留 `DeepSeek Harness`。dev 构建在两个平台上都以 `Electron` 运行。
 
 从 shell 验证打包构建前，先 unset `ELECTRON_RUN_AS_NODE`：该变量存在时，应用二进制会以 plain Node 方式运行并静默退出，不会启动 GUI。
 
@@ -63,7 +63,7 @@ macOS 上窗口隐藏系统标题栏（`titleBarStyle: 'hiddenInset'`、`acceptF
 | `pnpm-workspace.yaml` | `allowBuilds`: `electron: true`, `electron-winstaller: false` | pnpm 10+ 拦截未列出的构建脚本；需要 Electron 二进制下载，Windows NSIS 工具链在此为 no-op |
 | `tsconfig.base.json` | `dsh-client-ui-directory-picker-{native,browse}` 的两个 `paths` 条目 | 这些客户端包缺少每个 host/client-group 包都需要的显式条目（上游 bug；缺它源码启动在 Node 24 上失败） |
 | 根 `package.json` | `desktop:dev`、`desktop:package` 脚本 | 便捷入口 |
-| `apps/web/src/main.ts` | `?shell=desktop` 标记检测（给 `<html>` 打 `data-shell="desktop"`） | 窗口一体化——见上节 |
+| `apps/web/src/main.ts` | `?shell=desktop` 标记检测（给 `<html>` 打 `data-shell="desktop"`）+ 向壳 preload 上报解析后的主题色 | 窗口一体化——见上节 |
 | `packages/client/ui-layout/.../AppFrame.tsx` + `.module.css` | desktop 下收起侧栏的零宽轨道；收起时无边框缝 | 窗口一体化——见上节 |
 | `packages/client/ui-sidebar/.../SidebarRoot.tsx` + `.module.css` | 常驻 portal 按钮、两行品牌行、收起时隐藏菜单项；品牌行在 `<html data-portal-menu-open>` 存续期间让位 `no-drag` | 窗口一体化——见上节 |
 | `packages/client/ui-sidebar/package.json` | portal 导入所需的 `react-dom` 依赖（+ `@types/react-dom`） | 窗口一体化——见上节 |
@@ -76,6 +76,7 @@ macOS 上窗口隐藏系统标题栏（`titleBarStyle: 'hiddenInset'`、`acceptF
 
 ## 已知限制与延期工作
 
+- Windows 标题栏覆盖层是实色的，仅在渲染端首次上报后才跟随页面主题；在此之前（以及页面从未加载时）显示深色窗口表面。
 - 尚无托盘、全局快捷键、原生目录选择器后端——它们是 Phase 2+ 的界面（picker 接缝已为 Electron 提供的 `native` 后端预留）。
 - 子进程运行在 Electron 自带的 Node 上；未来的 Electron 升级必须使其保持在仓库 `engines` 范围内（`^22.19 || >=24`）。
 - Windows 残留子进程回收依赖 `ps`，该平台没有此命令；pidfile 仍会写入和移除，但在平台检查落地前回收是 no-op。
