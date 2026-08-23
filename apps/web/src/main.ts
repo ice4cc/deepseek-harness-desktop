@@ -18,14 +18,6 @@ declare global {
   }
 }
 
-// Desktop-shell marker (`?shell=desktop`, appended by the Electron shell):
-// tags <html> so desktop-only layout rules (traffic-light clearance, window
-// drag regions) apply; plain browser loads keep the stock layout.
-if (new URLSearchParams(window.location.search).get('shell') === 'desktop') {
-  document.documentElement.dataset.shell = 'desktop'
-  reportDesktopThemeColors()
-}
-
 /**
  * Feed the Windows caption-button overlay the page's resolved theme colors: it
  * is a solid OS-drawn band that cannot read page CSS, so the renderer reports
@@ -75,7 +67,8 @@ function sampleCaptionFill(): string | null {
     if (el === document.body) break
     const layer = parseRgb(getComputedStyle(el).backgroundColor)
     if (layer === null || layer[3] === 0) continue
-    acc = sourceOver(layer, acc)
+    // The list is top-down: each new element sits BELOW the accumulated stack.
+    acc = acc === null ? layer : sourceOver(acc, layer)
     if (acc[3] >= 1) break
   }
   if (acc === null) return null
@@ -108,6 +101,16 @@ function sourceOver(
   if (a === 0) return [0, 0, 0, 0]
   const mix = (s: number, t: number): number => (s * src[3] + t * d[3] * (1 - src[3])) / a
   return [mix(src[0], d[0]), mix(src[1], d[1]), mix(src[2], d[2]), a]
+}
+
+// Desktop-shell marker (`?shell=desktop`, appended by the Electron shell):
+// tags <html> so desktop-only layout rules (traffic-light clearance, window
+// drag regions) apply; plain browser loads keep the stock layout. Runs after
+// every module definition below it: the reporter reads module-level constants
+// that a top-of-file call would still find in the temporal dead zone.
+if (new URLSearchParams(window.location.search).get('shell') === 'desktop') {
+  document.documentElement.dataset.shell = 'desktop'
+  reportDesktopThemeColors()
 }
 
 const el = document.getElementById('root')
