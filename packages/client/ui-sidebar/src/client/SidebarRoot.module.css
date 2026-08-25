@@ -338,10 +338,12 @@
   }
 }
 
-/* Desktop shell (Electron hiddenInset): the OS traffic lights inset over the
-   top-left corner. Wide mode turns the logo row into a two-line window chrome
-   (Codex layout): line 1 = [78 px light clearance][collapse toggle] plus
-   draggable empty space, line 2 = the brand wordmark at its natural size —
+/* Desktop shell (Electron hiddenInset): on macOS the OS traffic lights inset
+   over the top-left corner; no other shell has top-left window controls. Wide
+   mode turns the logo row into a two-line window chrome (Codex layout): line 1
+   = the window chrome row (the floating toggle's coordinate, light clearance
+   on macOS) plus draggable empty space, line 2 = the brand wordmark at its
+   natural size —
    a 256 px sidebar cannot fit lights + 182 px wordmark + toggle on one line.
    The row is a window drag strip; its buttons stay no-drag. Collapsed mode
    drops to zero width (AppFrame) and keeps only the expand button, floating
@@ -366,10 +368,10 @@
 
 :global(html[data-shell='desktop']) .root:not(.collapsed) .logoRow {
   /* Two lines, both children absolutely pinned (flex-wrap would not wrap the
-     100%-basis brand reliably here): line 1 is the window chrome row (light
-     clearance + toggle at 94,6), line 2 is the wordmark at natural size. The
-     fixed 68px height reserves both rows; zero padding keeps the content box
-     the full column width so the wordmark is never compressed. */
+     100%-basis brand reliably here): line 1 is the window chrome row (the
+     floating toggle's line; its x offset is per-OS), line 2 is the wordmark at
+     natural size. The fixed 68px height reserves both rows; zero padding keeps
+     the content box the full column width so the wordmark is never compressed. */
   height: 68px;
   padding: 0;
   position: relative;
@@ -384,8 +386,8 @@
 }
 
 /* Desktop rail (Codex-style): a closed sidebar is zero-width — the vertical
-   control menu is hidden and the expand button floats next to the OS traffic
-   lights, in the same spot it occupies on line 1 when expanded. The floating
+   control menu is hidden and the expand button floats in its line-1 spot (next
+   to the macOS traffic lights; at the content edge elsewhere). The floating
    button is portaled into the frame's overlay layer (SidebarRoot.tsx) because
    a fixed escapee of the zero-width column is not reliably carved out of the
    browser process's cached drag regions. The browser keeps the bordered 56px
@@ -406,9 +408,12 @@
 }
 
 /* The persistent floating toggle, rendered (via portal) into the frame's
-   overlay layer. Same node and coordinate (94,6) in both states. */
+   overlay layer. Same node and coordinate in both states; the left offset is
+   per-OS (below). */
 .floatingExpand {
   position: absolute;
+  /* Beside the macOS traffic lights, which no other desktop shell has in the
+     top-left corner (see the data-os override below). */
   left: 94px;
   /* Center y=18: the OS traffic-light centers sit at ~16.75 CSS px from the
      window top (measured from a real screenshot), not the 20 assumed for a
@@ -430,4 +435,14 @@
 
 .floatingExpand:hover {
   background: var(--dsw-alias-interactive-bg-hover);
+}
+
+/* Shells without top-left window controls (Windows floats its min/max/close
+   at the top-right; Linux keeps the stock frame) need no light clearance: the
+   toggle sits at the sidebar content edge — above the wordmark when expanded,
+   over the empty conversation corner when collapsed. The value mirrors
+   --dsh-sidebar-inline-padding on .root as a literal: the portaled button is
+   not a descendant of .root, so it cannot inherit the variable. */
+:global(html[data-shell='desktop']:not([data-os='darwin'])) .floatingExpand {
+  left: 12px;
 }

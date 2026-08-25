@@ -105,11 +105,17 @@ function sourceOver(
 
 // Desktop-shell marker (`?shell=desktop`, appended by the Electron shell):
 // tags <html> so desktop-only layout rules (traffic-light clearance, window
-// drag regions) apply; plain browser loads keep the stock layout. Runs after
-// every module definition below it: the reporter reads module-level constants
-// that a top-of-file call would still find in the temporal dead zone.
-if (new URLSearchParams(window.location.search).get('shell') === 'desktop') {
+// drag regions) apply; plain browser loads keep the stock layout. The shell's
+// own platform arrives as `os` and is mirrored as data-os: rules that depend
+// on where the OS parks its window controls (the toggle's top-left clearance)
+// key on it instead of sniffing the user agent. Runs after every module
+// definition below it: the reporter reads module-level constants that a
+// top-of-file call would still find in the temporal dead zone.
+const shellParams = new URLSearchParams(window.location.search)
+if (shellParams.get('shell') === 'desktop') {
   document.documentElement.dataset.shell = 'desktop'
+  const os = shellParams.get('os')
+  if (os !== null) document.documentElement.dataset.os = os
   reportDesktopThemeColors()
 }
 

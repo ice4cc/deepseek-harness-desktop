@@ -284,9 +284,13 @@ function createWindow(url) {
     })
   }
   // The shell marker lets the web page apply desktop-only layout (traffic-light
-  // clearance, window drag regions); plain browser loads stay untouched.
+  // clearance, window drag regions); plain browser loads stay untouched. The
+  // platform parameter mirrors process.platform for rules that depend on where
+  // the OS parks its window controls (the toggle's top-left clearance exists
+  // only for the macOS traffic lights).
   const target = new URL(url)
   target.searchParams.set('shell', 'desktop')
+  target.searchParams.set('os', process.platform)
   void window.loadURL(target.toString())
   return window
 }

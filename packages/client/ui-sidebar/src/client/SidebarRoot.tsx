@@ -75,8 +75,9 @@ export function SidebarRoot({
   // process's cached drag regions — real clicks land on the conversation
   // strip's drag area (single click drags the window, double click zooms it)
   // — so the button lives in the unclipped full-viewport layer. One
-  // persistent node at one coordinate (94,6, both states) means the toggle
-  // swaps no DOM and the glyph never flashes while the column animates; the
+  // persistent node at one coordinate in both states (per-OS x offset, see
+  // .floatingExpand) means the toggle swaps no DOM and the glyph never
+  // flashes while the column animates; the
   // in-column duplicate is hidden on desktop (.toggle display:none). Queried
   // per render so an HMR-swapped layer node is picked up on the next paint.
   const desktopShell = document.documentElement.dataset.shell === 'desktop'
