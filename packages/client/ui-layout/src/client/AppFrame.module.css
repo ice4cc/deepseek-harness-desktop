@@ -36,14 +36,24 @@
   overflow: hidden;
 }
 
+.docCol {
+  min-width: 0;
+  overflow: hidden;
+  /* Hairline (l1), matching the sidebar seam — the doc panel shares the base
+     surface, so a faint divider keeps it from blurring into center. */
+  border-left: 1px solid var(--dsw-alias-border-l1);
+}
+
 .detailsCol {
   min-width: 0;
   overflow: hidden;
   border-left: 1px solid var(--dsw-alias-border-l2);
 }
 
-/* The details subtree stays mounted at zero width, so its border must not paint
-   a 1px seam. The collapsed sidebar instead retains a bordered compact rail. */
+/* The doc panel and details subtrees stay mounted at zero width, so their
+   borders must not paint a 1px seam. The collapsed sidebar instead retains a
+   bordered compact rail. */
+.frame[data-doc-collapsed] .docCol,
 .frame[data-details-collapsed] .detailsCol {
   border-left: none;
 }
@@ -55,8 +65,9 @@
 }
 
 /* Drag handles are frame children (columns clip overflow): an 8px hit strip
-   centered on the column border via inline left, above column content. Details
-   adds a visible 12x32 pill at vertical center; sidebar keeps only the hit strip. */
+   centered on the column border via inline left, above column content. The doc
+   panel and details add a visible 12x32 pill at vertical center; sidebar keeps
+   only the hit strip. */
 .handle {
   position: absolute;
   top: 0;
@@ -81,6 +92,7 @@
   }
 }
 
+.handle[data-side='doc']::after,
 .handle[data-side='details']::after {
   content: '';
   position: absolute;
@@ -93,20 +105,25 @@
   box-sizing: border-box;
   background: var(--dsw-alias-button-floating-fill);
   border: 1px solid var(--dsw-alias-border-l2-darkmode-thin);
-  /* Hover affordance: the details pill hides until the pointer is over its
-     column, the strip itself, or a drag. */
+  /* Hover affordance: the pill hides until the pointer is over its column,
+     the strip itself, or a drag. */
   opacity: 0;
   transition:
     opacity var(--ds-transition-duration-slow) var(--ds-ease-in-out),
     background var(--ds-transition-duration-slow) var(--ds-ease-in-out);
 }
 
+.docCol:hover ~ .handle[data-side='doc']::after,
+.handle[data-side='doc']:hover::after,
+.handle[data-side='doc'][data-dragging='true']::after,
 .detailsCol:hover ~ .handle[data-side='details']::after,
 .handle[data-side='details']:hover::after,
 .handle[data-side='details'][data-dragging='true']::after {
   opacity: 1;
 }
 
+.handle[data-side='doc']:hover::after,
+.handle[data-side='doc'][data-dragging='true']::after,
 .handle[data-side='details']:hover::after,
 .handle[data-side='details'][data-dragging='true']::after {
   background: var(--dsw-alias-button-floating-hover);

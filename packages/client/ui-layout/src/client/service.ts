@@ -5,8 +5,9 @@
  * the per-session active view dissolved into ui-conversation's session store
  * (its only consumer). What remains here is the contract other plugins'
  * apply worlds reach for panel transitions (sidebar toggle from ui-sidebar,
- * details open/close from ui-conversation) — writes stay inside the store's
- * declared action set, delivered as the registration's bound actions.
+ * doc panel open/close from ui-doc-panel, details open/close from
+ * ui-conversation) — writes stay inside the store's declared action set,
+ * delivered as the registration's bound actions.
  */
 import type { BoundActions } from '@deepseek-ai/dsh-client-ui-slots'
 import type { createLayoutStore } from './stores.ts'
@@ -23,6 +24,10 @@ export type PanelActions = BoundActions<ReturnType<typeof createLayoutStore>>
 export interface ILayout {
   /** Toggle the sidebar panel (closed ⟷ contract default width). */
   toggleSidebar(): void
+  /** Open the doc panel (no-op when already open). */
+  openDocPanel(): void
+  /** Close the doc panel. */
+  closeDocPanel(): void
   /** Open the details panel (no-op when already open). */
   openDetails(): void
   /** Close the details panel. */
@@ -47,6 +52,16 @@ export class LayoutController implements ILayout {
   /** Toggle the sidebar panel (closed ⟷ contract default width). */
   toggleSidebar(): void {
     this.#require().toggleSidebar()
+  }
+
+  /** Open the doc panel (no-op when already open). */
+  openDocPanel(): void {
+    this.#require().openDocPanel()
+  }
+
+  /** Close the doc panel. */
+  closeDocPanel(): void {
+    this.#require().closeDocPanel()
   }
 
   /** Open the details panel (no-op when already open). */

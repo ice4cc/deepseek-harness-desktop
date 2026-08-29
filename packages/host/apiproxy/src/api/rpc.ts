@@ -45,6 +45,13 @@ export interface RpcErrorDetailsMap {
   'directory-exists': { path: string }
   'directory-create-failed': { path: string }
   'directory-picker-unavailable': { capability: string }
+  'file-unreadable': { path: string }
+  'file-too-large': { path: string }
+  'binary-file': { path: string }
+  /** A host text write could not be performed (non-qualified path, directory target, or a filesystem failure). */
+  'file-unwritable': { path: string }
+  /** A guarded write's expectedVersion did not match the current on-disk token (or named a missing file); nothing was written. */
+  'file-stale-version': { path: string }
   'agent-preset-read-only': { agentPreset: string; reason: string }
   'agent-preset-locked': { sessionId: SessionId; agentPreset: string }
   'agent-preset-conflict': { sessionId: SessionId; requestedPreset: string; existingPreset?: string }

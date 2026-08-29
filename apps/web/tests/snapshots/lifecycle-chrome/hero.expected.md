@@ -32,7 +32,6 @@
 - textbox "Describe what you want to build"
 - button "Commands":
   - img
-- tooltip "Commands"
 - 'button "Access mode, current: Workspace Write"': Workspace Write
 - button "Thinking effort selector":
   - img
@@ -45,3 +44,5 @@
 - text: Details
 - button "Close details"
 - text: Click a tool row in the message flow to view its details
+- button "Open document panel":
+  - img

@@ -1597,6 +1597,18 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
       'deepseek-web', 'deepseek-harness', 'deepseek-app', 'deepseek-landing-blog',
     ]],
   ])
+  // Deterministic file content behind the fixture's readTextFile: the document
+  // panel lanes open these without a real filesystem; any other path fails
+  // file-unreadable like the host fence.
+  const fileContents = new Map<string, string>([
+    [`${FIXTURE_HOME}/Documents/project/README.md`, '# Fixture project\n\nDeterministic fixture content for the document panel lanes.\n'],
+    [`${FIXTURE_HOME}/Documents/project/app.ts`, 'export const answer = 42\n'],
+  ])
+  // Freshness baseline per file (the guarded write's compare-and-swap token):
+  // seeded files start at revision 1; a successful write bumps the revision so
+  // a later save with the old baseline reports file-stale-version like the host.
+  const fileRevisions = new Map<string, number>([...fileContents.keys()].map(path => [path, 1]))
+  const versionOf = (path: string): string => `fx-v${fileRevisions.get(path) ?? 1}`
   const childrenOf = (path: string): string[] | undefined => {
     const known = directoryTree.get(path)
     if (known !== undefined) return known
@@ -2655,6 +2667,32 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
         directoryTree.set(target, [])
         return ok(request, { path: target })
       },
+      readTextFile: (request) => {
+        const target = request.payload.path
+        const content = fileContents.get(target)
+        if (content === undefined) {
+          return err(request, { code: 'file-unreadable', message: `cannot read ${target}: not in the fixture tree`, details: { path: target } })
+        }
+        return ok(request, { path: target, content, size: new TextEncoder().encode(content).length, version: versionOf(target) })
+      },
+      writeTextFile: (request) => {
+        const target = request.payload.path
+        if (!fileContents.has(target)) {
+          // A guarded save of an unknown file reports stale (the safe direction);
+          // an unguarded one is simply unwritable, mirroring the host fence.
+          if (request.payload.expectedVersion !== undefined) {
+            return err(request, { code: 'file-stale-version', message: `${target} changed since it was read`, details: { path: target } })
+          }
+          return err(request, { code: 'file-unwritable', message: `cannot write ${target}: not in the fixture tree`, details: { path: target } })
+        }
+        if (request.payload.expectedVersion !== undefined && versionOf(target) !== request.payload.expectedVersion) {
+          return err(request, { code: 'file-stale-version', message: `${target} changed since it was read`, details: { path: target } })
+        }
+        fileContents.set(target, request.payload.content)
+        const next = (fileRevisions.get(target) ?? 1) + 1
+        fileRevisions.set(target, next)
+        return ok(request, { path: target, version: `fx-v${next}`, size: new TextEncoder().encode(request.payload.content).length })
+      },
       openPath: request => ok(request, { opened: true as const }),
     },
     workspace: {
@@ -3195,6 +3233,8 @@ export class FixtureApiClient extends AbstractApiClient {
       case 'host.pickDirectory': return this.api.host.pickDirectory(request, new AbortController().signal)
       case 'host.listDirectory': return this.api.host.listDirectory(request, new AbortController().signal)
       case 'host.createDirectory': return this.api.host.createDirectory(request)
+      case 'host.readTextFile': return this.api.host.readTextFile(request, new AbortController().signal)
+      case 'host.writeTextFile': return this.api.host.writeTextFile(request, new AbortController().signal)
       case 'host.openPath': return this.api.host.openPath(request, new AbortController().signal)
       case 'workspace.list': return this.api.workspace.list(request)
       case 'workspace.create': return this.api.workspace.create(request)

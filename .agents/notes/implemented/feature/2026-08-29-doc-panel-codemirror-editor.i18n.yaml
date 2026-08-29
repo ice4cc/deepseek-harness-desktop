@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-29-doc-panel-codemirror-editor.md
+2026-08-29-doc-panel-codemirror-editor.md: 225d7c35218a508bc9e262a871191409facbe815
+2026-08-29-doc-panel-codemirror-editor.zh.md: 9e36ad92fafa2a74e2219cf973f8db33185006df

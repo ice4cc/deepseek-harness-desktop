@@ -3,7 +3,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type {
   DirectoryListing, IApiClient, RpcError,
-  SessionId, WorkspaceId, WorkspaceView,
+  SessionId, TextFileContent, WrittenTextFile, WorkspaceId, WorkspaceView,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SnapshotStore } from '../contract/store.ts'
 import { createSnapshotStore } from '../contract/store.ts'
@@ -44,6 +44,14 @@ export class DirectoryBrowseError extends Error {
   constructor(readonly rpcError: RpcError) {
     super(`directory browse failed: ${rpcError.code}: ${rpcError.message}`)
     this.name = 'DirectoryBrowseError'
+  }
+}
+
+/** Structured text-write failure so the document editor can branch on Host business codes (e.g. `file-stale-version`). */
+export class TextFileWriteError extends Error {
+  constructor(readonly rpcError: RpcError) {
+    super(`text file write failed: ${rpcError.code}: ${rpcError.message}`)
+    this.name = 'TextFileWriteError'
   }
 }
 
@@ -236,6 +244,39 @@ export class WorkspaceRuntime implements IWorkspaces {
     const response = await this.api.host.createDirectory({ path, name })
     if (!response.result.ok) throw new DirectoryBrowseError(response.result.error)
     return response.result.value.path
+  }
+
+  /**
+   * Read one regular file as UTF-8 text through the Host's `browse` capability
+   * (the in-app document viewer's read).
+   * @param path - absolute file to read.
+   * @param signal - aborts the wire request (and the Host's read) when the caller supersedes it.
+   * @returns the file's decoded content with its on-disk byte size.
+   */
+  async readTextFile(path: string, signal?: AbortSignal): Promise<TextFileContent> {
+    const response = await this.api.host.readTextFile({ path }, signal)
+    if (!response.result.ok) throw new DirectoryBrowseError(response.result.error)
+    return response.result.value
+  }
+
+  /**
+   * Write one text file's full content through the Host (the in-app document
+   * editor's save). A supplied expectedVersion guards against clobbering a file
+   * that moved on disk since the tab's baseline read; omitting it overwrites
+   * unconditionally.
+   * @param path - absolute file to write.
+   * @param content - full replacement content (UTF-8).
+   * @param expectedVersion - freshness guard from the tab's last read/save; omitted for an unconditional overwrite.
+   * @param signal - aborts the wire request (and the Host's write) when the caller supersedes it.
+   * @returns the written file's fresh baseline (path, version, size).
+   */
+  async writeTextFile(path: string, content: string, expectedVersion?: string, signal?: AbortSignal): Promise<WrittenTextFile> {
+    const response = await this.api.host.writeTextFile(
+      { path, content, ...(expectedVersion !== undefined ? { expectedVersion } : {}) },
+      signal,
+    )
+    if (!response.result.ok) throw new TextFileWriteError(response.result.error)
+    return response.result.value
   }
 
   /**

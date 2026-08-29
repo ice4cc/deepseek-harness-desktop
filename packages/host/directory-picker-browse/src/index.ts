@@ -11,11 +11,11 @@
 
 import { mkdir, opendir, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { basename, dirname, join, posix, resolve, win32 } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import {
-  DirectoryPicker, DirectoryPickerError,
+  asError, DirectoryPicker, DirectoryPickerError, fullyQualified, raceAbort,
 } from '@deepseek-ai/dsh-host-directory-picker'
 import type {
   DirectoryEntry, DirectoryListing, DirectoryPickerCapability,
@@ -35,22 +35,6 @@ function ancestryCrumbs(target: string): DirectoryEntry[] {
     if (parent === current) return crumbs
     current = parent
   }
-}
-
-/**
- * True when the path names one fixed filesystem location regardless of
- * process state: POSIX-absolute on POSIX; on Windows only drive-qualified
- * (`C:\…`) or complete UNC (`\\server\share…`) forms. Rooted drive-less
- * forms (`\foo`, `/foo`) and incomplete UNC prefixes (`\\`, `\\server`)
- * pass `isAbsolute` yet still resolve against the process's current drive.
- * @param path - candidate path.
- * @param platform - replaces `process.platform` for deterministic tests.
- * @returns whether the path is fully qualified on the platform.
- */
-export function fullyQualified(path: string, platform: NodeJS.Platform = process.platform): boolean {
-  return platform === 'win32'
-    ? win32.isAbsolute(path) && /^(?:[A-Za-z]:[\\/]|[\\/]{2}[^\\/]+[\\/]+[^\\/]+)/.test(path)
-    : posix.isAbsolute(path)
 }
 
 /** One streamed listing candidate: the dirent facts a row needs, nothing else retained. */
@@ -93,49 +77,6 @@ export function boundedInsert(window: ListingCandidate[], candidate: ListingCand
   if (window.length <= keep) return false
   window.pop()
   return true
-}
-
-/**
- * Await `operation`, but reject with the signal's reason the moment it
- * aborts. Node's filesystem reads are not retractable, so the operation
- * itself keeps running against a handle the caller then closes — its late
- * settlement is swallowed here so an abandoned read cannot surface as an
- * unhandled rejection.
- * @param operation - the in-flight filesystem step.
- * @param signal - caller lifetime; absent means plain awaiting.
- * @returns the operation's value.
- */
-export function raceAbort<T>(operation: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
-  if (signal === undefined) return operation
-  return new Promise<T>((resolve, reject) => {
-    const onAbort = (): void => {
-      operation.catch(() => {
-        // Abandoned read: its handle is being closed by the aborting caller,
-        // and the abort reason already carried the outcome.
-      })
-      reject(asError(signal.reason))
-    }
-    if (signal.aborted) {
-      onAbort()
-      return
-    }
-    signal.addEventListener('abort', onAbort, { once: true })
-    operation.then(
-      (value) => {
-        signal.removeEventListener('abort', onAbort)
-        resolve(value)
-      },
-      (reason: unknown) => {
-        signal.removeEventListener('abort', onAbort)
-        reject(asError(reason))
-      },
-    )
-  })
-}
-
-/** The thrown value as an Error (wire/abort reasons may be anything). */
-function asError(reason: unknown): Error {
-  return reason instanceof Error ? reason : new Error(String(reason))
 }
 
 /* v8 ignore start -- a close failure of an abandoned handle has no consumer, and forcing one needs a filesystem torn down mid-request. */

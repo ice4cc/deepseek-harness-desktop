@@ -64,6 +64,33 @@ export const hostCreateDirectoryRequestSchema = z.object({
 export const hostCreateDirectoryValueSchema = z.object({
   path: z.string(),
 }) satisfies z.ZodType<Wire<ResponseValue<'host.createDirectory'>>>
+/** host.readTextFile request payload. */
+export const hostReadTextFileRequestSchema = z.object({
+  path: z.string(),
+}) satisfies z.ZodType<Wire<RequestPayload<'host.readTextFile'>>>
+
+/** host.readTextFile response value. */
+export const hostReadTextFileValueSchema = z.object({
+  path: z.string(),
+  content: z.string(),
+  size: z.number().int().nonnegative(),
+  version: z.string(),
+}) satisfies z.ZodType<Wire<ResponseValue<'host.readTextFile'>>>
+
+/** host.writeTextFile request payload; expectedVersion is the freshness guard (absent = unconditional overwrite). */
+export const hostWriteTextFileRequestSchema = z.object({
+  path: z.string(),
+  content: z.string(),
+  expectedVersion: z.string().optional(),
+}) satisfies z.ZodType<Wire<RequestPayload<'host.writeTextFile'>>>
+
+/** host.writeTextFile response value: the written file's fresh baseline. */
+export const hostWriteTextFileValueSchema = z.object({
+  path: z.string(),
+  version: z.string(),
+  size: z.number().int().nonnegative(),
+}) satisfies z.ZodType<Wire<ResponseValue<'host.writeTextFile'>>>
+
 /** host.openPath request payload. */
 export const hostOpenPathRequestSchema = z.object({
   path: z.string().min(1),

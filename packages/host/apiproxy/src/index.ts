@@ -16,7 +16,7 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type { ApiProxy } from './api/index.ts'
-import { createApiProxy, DEFAULT_COLD_BLANK_PROBE_MAX_BYTES } from './api-proxy.ts'
+import { createApiProxy, DEFAULT_COLD_BLANK_PROBE_MAX_BYTES, DEFAULT_MAX_TEXT_BYTES, DEFAULT_MAX_WRITE_BYTES } from './api-proxy.ts'
 import {
   DEFAULT_SESSION_LOG_COMPRESSION_LEVEL,
   type SessionLogCompressionLevel,
@@ -59,6 +59,19 @@ export interface Config {
    * @default 1024
    */
   coldBlankProbeMaxBytes?: number
+  /**
+   * Maximum on-disk size in bytes of one `host.readTextFile` payload; larger
+   * files fail with `file-too-large` before any byte is read.
+   * @default 1000000
+   */
+  maxTextBytes?: number
+  /**
+   * Maximum byte length of one `host.writeTextFile` payload (the document
+   * editor's save); larger saves fail with `file-too-large` before any byte is
+   * written. Symmetric with the read text bound.
+   * @default 1000000
+   */
+  maxWriteBytes?: number
 }
 
 /**
@@ -77,6 +90,8 @@ export class ApiProxyService extends Service implements ApiProxy {
     sessionExportCompressionLevel: z.number().step(1).min(0).max(9)
       .default(DEFAULT_SESSION_LOG_COMPRESSION_LEVEL) as z<SessionLogCompressionLevel>,
     coldBlankProbeMaxBytes: z.natural().default(DEFAULT_COLD_BLANK_PROBE_MAX_BYTES),
+    maxTextBytes: z.natural().min(1).default(DEFAULT_MAX_TEXT_BYTES),
+    maxWriteBytes: z.natural().min(1).default(DEFAULT_MAX_WRITE_BYTES),
   })
 
   readonly sessions: ApiProxy['sessions']
@@ -106,6 +121,8 @@ export class ApiProxyService extends Service implements ApiProxy {
       ...(config.coldBlankProbeMaxBytes === undefined
         ? {}
         : { coldBlankProbeMaxBytes: config.coldBlankProbeMaxBytes }),
+      ...(config.maxTextBytes === undefined ? {} : { maxTextBytes: config.maxTextBytes }),
+      ...(config.maxWriteBytes === undefined ? {} : { maxWriteBytes: config.maxWriteBytes }),
     })
     this.sessions = api.sessions
     this.subagents = api.subagents

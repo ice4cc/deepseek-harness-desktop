@@ -6,7 +6,7 @@
  * the concrete class. Widening this interface is the explicit act of
  * widening what features may do to the workspaces domain.
  */
-import type { DirectoryListing, SessionId, WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-remotes/client'
+import type { DirectoryListing, SessionId, TextFileContent, WrittenTextFile, WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import type { WorkspaceListState } from '../workspaces/service.ts'
 import type { ObservableSnapshot } from './store.ts'
 
@@ -53,6 +53,26 @@ export interface IWorkspaces {
    * @returns the created directory's absolute path.
    */
   createDirectory(path: string, name: string): Promise<string>
+  /**
+   * Read one regular file as UTF-8 text through the Host's `browse` capability
+   * (the in-app document viewer's read).
+   * @param path - absolute file to read.
+   * @param signal - aborts the wire request (and the Host's read) when the caller supersedes it.
+   * @returns the file's decoded content with its on-disk byte size.
+   */
+  readTextFile(path: string, signal?: AbortSignal): Promise<TextFileContent>
+  /**
+   * Write one text file's full content through the Host (the in-app document
+   * editor's save). A supplied expectedVersion guards against clobbering a file
+   * that moved on disk since the tab's baseline read; omitting it overwrites
+   * unconditionally.
+   * @param path - absolute file to write.
+   * @param content - full replacement content (UTF-8).
+   * @param expectedVersion - freshness guard from the tab's last read/save; omitted for an unconditional overwrite.
+   * @param signal - aborts the wire request (and the Host's write) when the caller supersedes it.
+   * @returns the written file's fresh baseline (path, version, size).
+   */
+  writeTextFile(path: string, content: string, expectedVersion?: string, signal?: AbortSignal): Promise<WrittenTextFile>
   /**
    * Open a filesystem path with the Host operating system's default application.
    * @param path - absolute or host-resolvable path.

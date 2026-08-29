@@ -156,6 +156,12 @@ function fakeApi(overrides: Partial<{ muxFrames: MuxFrame[]; hostFrames: HostFra
       async createDirectory(request) {
         return { rpcId: request.rpcId, result: { ok: true, value: { path: '/w/new' } } }
       },
+      async readTextFile(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { path: request.payload.path, content: 'text', size: 4, version: 'v1' } } }
+      },
+      async writeTextFile(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { path: request.payload.path, version: 'v2', size: 4 } } }
+      },
       async openPath(request) {
         return { rpcId: request.rpcId, result: { ok: true, value: { opened: true as const } } }
       },

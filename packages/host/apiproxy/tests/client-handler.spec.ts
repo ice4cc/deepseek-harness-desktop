@@ -77,6 +77,8 @@ function scriptedApi(overrides: {
       pickDirectory: r => ok(r, { path: null }),
       listDirectory: r => ok(r, { path: '/t', home: '/t', crumbs: [], entries: [], truncated: false }),
       createDirectory: r => ok(r, { path: '/t/new' }),
+      readTextFile: r => ok(r, { path: r.payload.path, content: 'text', size: 4, version: 'v1' }),
+      writeTextFile: r => ok(r, { path: r.payload.path, version: 'v2', size: 4 }),
       openPath: r => ok(r, { opened: true as const }),
       ...overrides.host,
     },

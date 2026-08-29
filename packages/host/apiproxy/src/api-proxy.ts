@@ -4,9 +4,10 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { mkdir, stat } from 'node:fs/promises'
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
+import type { Stats } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { installModelSelection } from '@deepseek-ai/dsh-agent'
 import type { Agent, ModelSelection, ModelSelectionRef, AgentOptions, AgentStatus } from '@deepseek-ai/dsh-agent'
@@ -98,7 +99,7 @@ import type {
   AskUserQuestionAnswer, AskUserQuestionItem, AskUserQuestionRequest,
 } from '@deepseek-ai/dsh-user-questions'
 import { UserQuestionError } from '@deepseek-ai/dsh-user-questions'
-import { DirectoryPickerError } from '@deepseek-ai/dsh-host-directory-picker'
+import { DirectoryPickerError, fullyQualified, raceAbort } from '@deepseek-ai/dsh-host-directory-picker'
 import {
   ApiRemoteSessionNotFound as SessionNotFound,
   ApiRemoteSubagentSessionOwnership as SubagentSessionOwnership,
@@ -120,6 +121,23 @@ const SESSION_SEARCH_PROVIDER_CALL_LIMIT = 100
 const COLD_SUMMARY_BATCH_SIZE = 16
 /** Default maximum artifact size eligible for one cold blankness read. */
 export const DEFAULT_COLD_BLANK_PROBE_MAX_BYTES = 1024
+
+/** Default on-disk size bound of one `host.readTextFile` payload in bytes. */
+export const DEFAULT_MAX_TEXT_BYTES = 1_000_000
+
+/** Default byte bound of one `host.writeTextFile` payload (symmetric with the read text bound). */
+export const DEFAULT_MAX_WRITE_BYTES = 1_000_000
+
+/**
+ * Derive the document-panel freshness token from a stat: device, inode, size,
+ * and the mtime/ctime stamps. It is opaque to the client (an echo-back guard)
+ * and changes whenever the file's content-relevant identity or timestamps move,
+ * so a guarded write that lands on a changed file reports stale. The same
+ * derivation runs on the read and write paths, keeping the two comparable.
+ */
+function versionToken(info: Stats): string {
+  return `${info.dev}:${info.ino}:${info.size}:${info.mtimeMs}:${info.ctimeMs}`
+}
 
 /** Conversation message event types (the pagination counting unit). */
 const MESSAGE_TYPES = new Set(['user/message', 'assistant/message'])
@@ -602,6 +620,10 @@ export interface ApiProxyDefaults {
   openTextFile?: (path: string, signal: AbortSignal) => Promise<void>
   /** Validated DEFLATE level for session-log ZIP entries; defaults to 6. */
   sessionExportCompressionLevel?: SessionLogCompressionLevel
+  /** Maximum on-disk size in bytes of one `host.readTextFile` payload; larger files fail `file-too-large`. */
+  maxTextBytes?: number
+  /** Maximum byte length of one `host.writeTextFile` payload; larger saves fail `file-too-large`. */
+  maxWriteBytes?: number
   /** Maximum artifact size eligible for one cold blankness read. */
   coldBlankProbeMaxBytes?: number
   /**
@@ -1053,6 +1075,8 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     ?? DEFAULT_SESSION_LOG_COMPRESSION_LEVEL
   const coldBlankProbeMaxBytes = defaults.coldBlankProbeMaxBytes
     ?? DEFAULT_COLD_BLANK_PROBE_MAX_BYTES
+  const maxTextBytes = defaults.maxTextBytes ?? DEFAULT_MAX_TEXT_BYTES
+  const maxWriteBytes = defaults.maxWriteBytes ?? DEFAULT_MAX_WRITE_BYTES
   /** The seed model each create/resume declares; re-read so it never goes stale. */
   const agentOptions = (): AgentOptions => {
     const { provider, model } = defaults.defaultModelSelection()
@@ -2919,6 +2943,132 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           return ok(request, { path: await capability.createDirectory(request.payload.path, request.payload.name) })
         } catch (error: unknown) {
           return err(request, directoryError(error))
+        }
+      },
+
+      async readTextFile(request, signal) {
+        // The document panel's read is not a picker interaction: it must serve
+        // under every composed capability kind (a native desktop opens its own
+        // changed files), so the gateway reads the host filesystem directly.
+        const path = request.payload.path
+        if (!fullyQualified(path)) {
+          return err(request, {
+            code: 'file-unreadable',
+            message: `cannot read "${path}": not a fully qualified path`,
+            details: { path },
+          })
+        }
+        const target = resolve(path)
+        try {
+          // The carrier's signal follows the caller: a disconnect or timeout
+          // stops the file read instead of outliving it.
+          // The stat fact bounds the payload before any byte is read: an
+          // oversized file never touches the wire.
+          const info = await raceAbort(stat(target), signal)
+          if (!info.isFile()) {
+            return err(request, { code: 'file-unreadable', message: `${target} is not a regular file`, details: { path: target } })
+          }
+          if (info.size > maxTextBytes) {
+            return err(request, {
+              code: 'file-too-large',
+              message: `${target} is ${info.size} bytes; the text bound is ${maxTextBytes}`,
+              details: { path: target },
+            })
+          }
+          const buffer = await raceAbort(readFile(target), signal)
+          // Text/binary divider: a NUL anywhere in the leading 8 KiB. Documents
+          // and source never carry NUL; real binaries almost always do within
+          // the head.
+          if (buffer.subarray(0, 8192).includes(0)) {
+            return err(request, { code: 'binary-file', message: `${target} is not a text file`, details: { path: target } })
+          }
+          // The freshness token rides the read's own stat (no extra syscall):
+          // it seeds the editor's baseline for the guarded save.
+          return ok(request, { path: target, content: buffer.toString('utf8'), size: info.size, version: versionToken(info) })
+        } catch (error: unknown) {
+          // An abort is the caller's own timeout/disconnect, not a server failure.
+          if (signal.aborted) {
+            return err(request, { code: 'cancelled', message: 'file read was aborted', details: {} })
+          }
+          return err(request, {
+            code: 'file-unreadable',
+            message: `cannot read ${target}: ${error instanceof Error ? error.message : String(error)}`,
+            details: { path: target },
+          })
+        }
+      },
+
+      async writeTextFile(request, signal) {
+        // The document editor's save mirrors the read: it writes the host
+        // filesystem directly under every composed capability kind. The payload
+        // bound is checked before any byte is written (an oversized save never
+        // touches disk), and a supplied expectedVersion guards against clobbering
+        // a file that moved on disk since the tab's baseline read.
+        const path = request.payload.path
+        if (!fullyQualified(path)) {
+          return err(request, {
+            code: 'file-unwritable',
+            message: `cannot write "${path}": not a fully qualified path`,
+            details: { path },
+          })
+        }
+        const target = resolve(path)
+        const content = request.payload.content
+        const byteLength = Buffer.byteLength(content, 'utf8')
+        if (byteLength > maxWriteBytes) {
+          return err(request, {
+            code: 'file-too-large',
+            message: `${target} would be ${byteLength} bytes; the write bound is ${maxWriteBytes}`,
+            details: { path: target },
+          })
+        }
+        const expectedVersion = request.payload.expectedVersion
+        // The stat both supplies the freshness baseline and proves the target
+        // is a regular file; the guard compares against it before any write. A
+        // missing target throws here — a guarded save of a vanished file reports
+        // stale (the safe direction), an unguarded one is simply unwritable.
+        let info: Stats
+        try {
+          info = await raceAbort(stat(target), signal)
+        } catch (error: unknown) {
+          if (signal.aborted) {
+            return err(request, { code: 'cancelled', message: 'file write was aborted', details: {} })
+          }
+          if (expectedVersion !== undefined) {
+            return err(request, { code: 'file-stale-version', message: `${target} changed since it was read`, details: { path: target } })
+          }
+          return err(request, {
+            code: 'file-unwritable',
+            message: `cannot write ${target}: ${error instanceof Error ? error.message : String(error)}`,
+            details: { path: target },
+          })
+        }
+        if (!info.isFile()) {
+          // A directory (or other non-regular target): guarded reads stale, unguarded unwritable.
+          if (expectedVersion !== undefined) {
+            return err(request, { code: 'file-stale-version', message: `${target} changed since it was read`, details: { path: target } })
+          }
+          return err(request, { code: 'file-unwritable', message: `${target} is not a regular file`, details: { path: target } })
+        }
+        if (expectedVersion !== undefined && versionToken(info) !== expectedVersion) {
+          return err(request, { code: 'file-stale-version', message: `${target} changed since it was read`, details: { path: target } })
+        }
+        try {
+          // The carrier's signal follows the caller: a disconnect or timeout
+          // stops the write instead of outliving it.
+          await raceAbort(writeFile(target, content, 'utf8'), signal)
+          const after = await stat(target)
+          return ok(request, { path: target, version: versionToken(after), size: after.size })
+        } catch (error: unknown) {
+          // An abort is the caller's own timeout/disconnect, not a server failure.
+          if (signal.aborted) {
+            return err(request, { code: 'cancelled', message: 'file write was aborted', details: {} })
+          }
+          return err(request, {
+            code: 'file-unwritable',
+            message: `cannot write ${target}: ${error instanceof Error ? error.message : String(error)}`,
+            details: { path: target },
+          })
         }
       },
 

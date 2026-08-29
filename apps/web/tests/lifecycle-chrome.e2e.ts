@@ -164,6 +164,14 @@ describe('web e2e: lifecycle & chrome (workspace flow / reload / dark mode)', ()
     const input = page.locator('textarea').first()
     await input.waitFor({ timeout: 10_000 })
     if (MODE !== 'record') {
+      // The slash-menu test left the pointer over the Commands button and may
+      // have focused it, so its tooltip (hover delay or instant focus trigger)
+      // may still be up by capture time. Park the pointer outside the viewport
+      // and blur the active element so the golden always captures the resting
+      // state regardless of which trigger fired.
+      await page.mouse.move(-10, -10)
+      await page.evaluate(() => { (document.activeElement as HTMLElement | null)?.blur() })
+
       // Golden of the hero's stable waiting state (captured before any send;
       // the conversation-region goldens belong to the other scenarios).
       const snapshot = await captureStableAria(page, '[class*="frame"]', scaffold.workspaceCwd)

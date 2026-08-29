@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { SessionId, WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import { SessionRuntime } from '../src/client/sessions/service.ts'
 import { WorkspaceManager } from '../src/client/workspaces/manager.ts'
-import { DirectoryBrowseError, WorkspaceCreateError, WorkspaceRuntime } from '../src/client/workspaces/service.ts'
+import { DirectoryBrowseError, TextFileWriteError, WorkspaceCreateError, WorkspaceRuntime } from '../src/client/workspaces/service.ts'
 import { FakeApiClient, deferred, err, fakeRemote, ok } from './fake-api.client.ts'
 
 const sid = (id: string): SessionId => id as SessionId
@@ -347,6 +347,33 @@ describe('WorkspaceRuntime', () => {
     expect(api.callsOf('host.createDirectory')).toEqual([{ path: '/home/u', name: 'fresh' }])
     api.onCreateDirectory = () => Promise.resolve(err({ code: 'directory-exists', message: 'taken', details: { path: '/home/u/fresh' } }))
     await expect(workspaces.createDirectory('/home/u', 'fresh')).rejects.toMatchObject({ rpcError: { code: 'directory-exists' } })
+  })
+
+  it('reads one text file through the browse wire, wrapping business failures', async () => {
+    const ctx = new Context()
+    const api = new FakeApiClient()
+    const workspaces = new WorkspaceRuntime(ctx, api, new SessionRuntime(ctx, api, fakeRemote()))
+    const read = await workspaces.readTextFile('/home/u/notes.md')
+    expect(read).toEqual({ path: '/home/u/notes.md', content: 'fake contents', size: 13, version: 'fk-v1' })
+    expect(api.callsOf('host.readTextFile')).toEqual([{ path: '/home/u/notes.md' }])
+    api.onReadTextFile = () => Promise.resolve(err({ code: 'file-too-large', message: 'over the bound', details: { path: '/big' } }))
+    await expect(workspaces.readTextFile('/big')).rejects.toBeInstanceOf(DirectoryBrowseError)
+    await expect(workspaces.readTextFile('/big')).rejects.toMatchObject({ rpcError: { code: 'file-too-large' } })
+  })
+
+  it('writes one text file through the wire, forwarding the guard and wrapping business failures', async () => {
+    const ctx = new Context()
+    const api = new FakeApiClient()
+    const workspaces = new WorkspaceRuntime(ctx, api, new SessionRuntime(ctx, api, fakeRemote()))
+    const written = await workspaces.writeTextFile('/home/u/notes.md', 'edited\n', 'fk-v1')
+    expect(written).toEqual({ path: '/home/u/notes.md', version: 'fk-v2', size: 13 })
+    // The guard rides the payload; omitting it sends no expectedVersion field.
+    expect(api.callsOf('host.writeTextFile')).toEqual([{ path: '/home/u/notes.md', content: 'edited\n', expectedVersion: 'fk-v1' }])
+    await workspaces.writeTextFile('/home/u/notes.md', 'again\n')
+    expect(api.callsOf('host.writeTextFile')[1]).toEqual({ path: '/home/u/notes.md', content: 'again\n' })
+    api.onWriteTextFile = () => Promise.resolve(err({ code: 'file-stale-version', message: 'changed since read', details: { path: '/home/u/notes.md' } }))
+    await expect(workspaces.writeTextFile('/home/u/notes.md', 'x', 'fk-v1')).rejects.toBeInstanceOf(TextFileWriteError)
+    await expect(workspaces.writeTextFile('/home/u/notes.md', 'x', 'fk-v1')).rejects.toMatchObject({ rpcError: { code: 'file-stale-version' } })
   })
 
   it('opens a filesystem path through the host without local state', async () => {

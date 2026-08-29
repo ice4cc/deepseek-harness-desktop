@@ -90,6 +90,11 @@
     - id: session-stats
       name: '@deepseek-ai/dsh-session-stats'
 
+    # Per-path aggregation of successful edit/write results for the document
+    # panel's Changes tab (the fileChanges projection key).
+    - id: file-changes
+      name: '@deepseek-ai/dsh-file-changes'
+
     # Resolve bind host, SSH launch, and display once at boot, then mount the
     # matching dual-face directory picker. Mount -native or -browse directly in
     # an overlay to pin the interaction.
@@ -237,6 +242,10 @@
     - id: ui-deliverables
       name: '@deepseek-ai/dsh-client-ui-deliverables'
 
+    # Document panel: right-edge overlay column viewing session file changes
+    # and open files (Markdown / HTML / code). Remove to turn the surface off.
+    - id: ui-doc-panel
+      name: '@deepseek-ai/dsh-client-ui-doc-panel'
 
     - id: ui-workspace
       name: '@deepseek-ai/dsh-client-ui-workspace'

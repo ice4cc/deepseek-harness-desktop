@@ -32,6 +32,32 @@ export interface DirectoryListing {
   truncated: boolean
 }
 
+/** host.readTextFile response value: one text file's decoded content. */
+export interface TextFileContent {
+  /** Absolute path of the read file (echoes the resolved target). */
+  path: string
+  /** UTF-8 decoded content. */
+  content: string
+  /** On-disk size in bytes. */
+  size: number
+  /**
+   * Freshness token for conflict detection (opaque to the client): echo it back
+   * as `writeTextFile`'s expectedVersion so a save is rejected when the file has
+   * changed on disk since this read.
+   */
+  version: string
+}
+
+/** host.writeTextFile response value: the written file's fresh baseline. */
+export interface WrittenTextFile {
+  /** Absolute path of the written file (echoes the resolved target). */
+  path: string
+  /** Freshness token of the newly written content — the next expectedVersion baseline. */
+  version: string
+  /** On-disk size in bytes after the write. */
+  size: number
+}
+
 /** Host-level unary methods. */
 export interface HostApi {
   /**
@@ -84,6 +110,37 @@ export interface HostApi {
   createDirectory(
     request: RpcRequest<{ path: string; name: string }>,
   ): Promise<RpcResponse<{ path: string }>>
+
+  /**
+   * Read one regular file as UTF-8 text (the in-app document viewer's read),
+   * served directly from the host filesystem under every composed picker kind.
+   * A path that is not fully qualified, a missing or non-regular target, or
+   * any other filesystem failure fails with `file-unreadable`; an oversized
+   * file (over the gateway's text bound) with `file-too-large`, a non-text
+   * file with `binary-file`. The carrier's request signal follows the caller,
+   * stopping the read on disconnect or timeout.
+   */
+  readTextFile(
+    request: RpcRequest<{ path: string }>,
+    signal: AbortSignal,
+  ): Promise<RpcResponse<TextFileContent>>
+
+  /**
+   * Write one text file's full content (the in-app document editor's save),
+   * served directly to the host filesystem under every composed picker kind,
+   * like readTextFile. A path that is not fully qualified, a directory target,
+   * or any other filesystem failure fails with `file-unwritable`; an oversized
+   * payload (over the gateway's write bound) with `file-too-large`. When
+   * expectedVersion is supplied and does not match the current on-disk token —
+   * or names a file that no longer exists — the guard fails with
+   * `file-stale-version` instead of clobbering; omitting it overwrites
+   * unconditionally (the conflict banner's "overwrite anyway" path). The carrier's
+   * request signal follows the caller, stopping the write on disconnect or timeout.
+   */
+  writeTextFile(
+    request: RpcRequest<{ path: string; content: string; expectedVersion?: string }>,
+    signal: AbortSignal,
+  ): Promise<RpcResponse<WrittenTextFile>>
 
   /**
    * Open a filesystem path with the operating system's default application

@@ -1,7 +1,7 @@
 /** Test-owned workspaces face: the renderer standard-kit observable plus recorded actions. */
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type {
-  DirectoryListing, IWorkspaces, SessionId, SnapshotStore, WorkspaceId, WorkspaceListState, WorkspaceView,
+  DirectoryListing, IWorkspaces, SessionId, SnapshotStore, TextFileContent, WrittenTextFile, WorkspaceId, WorkspaceListState, WorkspaceView,
 } from '@deepseek-ai/dsh-client-runtime/client'
 import { workspaceListState } from './fixtures.ts'
 import type { Stabilizer } from './fixtures.ts'
@@ -148,6 +148,36 @@ export class TestWorkspaces implements IWorkspaces {
     const stub = this.stubs.get('createDirectory')
     if (stub !== undefined) return await (stub(path, name) as Promise<string>)
     return `${path}/${name}`
+  }
+
+  /**
+   * Browse text read (recorded). The default serves the path back with a
+   * stub body; stub to shape content or failures.
+   * @param path - absolute file to read.
+   * @returns the decoded content with its byte size.
+   */
+  async readTextFile(path: string, signal?: AbortSignal): Promise<TextFileContent> {
+    this.calls.push({ method: 'readTextFile', args: [path, signal] })
+    const stub = this.stubs.get('readTextFile')
+    if (stub !== undefined) return await (stub(path, signal) as Promise<TextFileContent>)
+    const content = `contents of ${path}`
+    // A fixed freshness token so the editor's guarded-save path has a baseline to echo back.
+    return { path, content, size: new TextEncoder().encode(content).length, version: 'v1' }
+  }
+
+  /**
+   * Browse text write (recorded). The default echoes the written bytes back as
+   * a fresh baseline; stub to shape conflicts or failures.
+   * @param path - absolute file to write.
+   * @param content - full replacement content.
+   * @param expectedVersion - freshness guard; recorded so conflict tests can assert it.
+   * @returns the written file's fresh baseline (path, version, size).
+   */
+  async writeTextFile(path: string, content: string, expectedVersion?: string): Promise<WrittenTextFile> {
+    this.calls.push({ method: 'writeTextFile', args: [path, content, expectedVersion] })
+    const stub = this.stubs.get('writeTextFile')
+    if (stub !== undefined) return await (stub(path, content, expectedVersion) as Promise<WrittenTextFile>)
+    return { path, version: 'v2', size: new TextEncoder().encode(content).length }
   }
 
   /**

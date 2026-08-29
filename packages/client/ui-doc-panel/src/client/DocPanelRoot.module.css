@@ -1,0 +1,509 @@
+/* Document panel: the occupant of the layout-owned docPanel grid column.
+   Collapsed it renders a reopen icon button portaled into the frame's
+   overlay layer; expanded it fills the column — header, tab strip, and
+   scrollable body. The column seam (border-left) is owned by AppFrame. */
+
+/* The reopen affordance matches the sidebar's toggle: a borderless circular
+   icon button (transparent at rest, hover wash only), portaled into the
+   overlay layer while the column track is zero width. */
+.reopenBtn {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  padding: 0;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.reopenBtn:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+/* Desktop shell: the button sits inside the conversation column's drag band
+   (top 44 px, full width while this column is closed) — Chromium routes a
+   mousedown in a cached drag rectangle to the window even over portaled
+   content, so it must be carved out like .floatingExpand and Modal. top: 4px
+   puts it on the sidebar floating toggle's row (both center at y=18). */
+:global(html[data-shell='desktop']) .reopenBtn {
+  top: 4px;
+  -webkit-app-region: no-drag;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  /* Shares the sidebar's surface so the left and right columns frame the center
+     symmetrically; AppFrame's hairline seam is the only divider. */
+  background: var(--dsw-specific-sidebar-fill);
+  color: var(--dsw-alias-label-primary);
+}
+
+/* Top chrome: a window title-bar band (draggable on the desktop shell, holding
+   the collapse button at the right edge) over the region name. No divider of its
+   own — the single column line sits under the tab row below. */
+.header {
+  display: flex;
+  flex-direction: column;
+  padding: 0 10px;
+}
+
+.titlebar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 32px;
+}
+
+:global(html[data-shell='desktop']) .titlebar {
+  height: 44px;
+  -webkit-app-region: drag;
+}
+
+/* Region row: the area name on the left, the auto-follow toggle pinned to the
+   right — one line just under the title-bar band. */
+.regionRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 0 3.5px;
+}
+
+.regionTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary);
+}
+
+.followToggle {
+  flex: none;
+  padding: 2px 8px;
+  border: 1px solid var(--dsw-alias-border-l3);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.followToggle:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.followOn {
+  border-color: var(--dsw-alias-brand-primary);
+  color: var(--dsw-alias-brand-text);
+  background: var(--dsw-alias-interactive-bg-hover-accent);
+}
+
+/* The header collapse toggle matches the sidebar's icon button: a borderless
+   circular 28px icon control with a hover wash (see .reopenBtn). */
+.collapseBtn {
+  position: absolute;
+  top: 10px;
+  right: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  padding: 0;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  /* The title-bar band is a window drag region; the button must stay clickable. */
+  -webkit-app-region: no-drag;
+}
+
+/* Desktop: sit on the sidebar floating-toggle's row (top 4px, center y=18) so
+   the right and left toggles line up; matching the collapsed reopen button means
+   collapsing causes no vertical jump. */
+:global(html[data-shell='desktop']) .collapseBtn {
+  top: 4px;
+}
+
+.collapseBtn:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+/* Tab row: the scrollable tab list on the left, the auto-follow toggle pinned
+   to the right. The row's bottom border is the panel's single column line. */
+.tabRow {
+  display: flex;
+  align-items: flex-end;
+  margin-top: 4px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+}
+
+/* The scrollable tab list: pinned changes tab first, then closable file tabs.
+   Flat text with a 2px underline on the active tab — the same language as the
+   conversation header's tabs. */
+.tabList {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  overflow-x: auto;
+}
+
+.tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 2px 10px;
+  border: none;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 16px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tab::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 1px;
+  left: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: transparent;
+}
+
+.tab:hover {
+  color: var(--dsw-alias-label-primary);
+}
+
+.tabActive {
+  color: var(--dsw-alias-state-business-primary);
+}
+
+.tabActive::after {
+  background: var(--dsw-alias-state-business-primary);
+}
+
+.fileTab {
+  max-width: 180px;
+}
+
+.tabLabel {
+  border: none;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tabClose {
+  border: none;
+  padding: 0;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tabClose:hover {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+/* The unsaved-changes marker beside a dirty tab's title. */
+.tabDirty {
+  margin-left: 4px;
+  font-size: 10px;
+  color: var(--dsw-alias-brand-primary);
+}
+
+.tabBadge {
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--dsw-alias-button-primary-fill);
+  color: var(--dsw-alias-label-primary-foreground);
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+}
+
+/* Body: one scroll region hosting the active tab's view. */
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.tabEmpty {
+  padding: 24px 16px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+}
+
+/* Changes tab rows. */
+.changesList {
+  display: flex;
+  flex-direction: column;
+}
+
+.changeRow {
+  border-bottom: 1px solid var(--dsw-alias-border-l3);
+}
+
+.changeHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+}
+
+.changeChevron {
+  border: none;
+  padding: 0 2px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.changePath {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  padding: 0;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.changePath:hover {
+  color: var(--dsw-alias-brand-text);
+  text-decoration: underline;
+}
+
+.changeStats {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.changeAdded {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.changeRemoved {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.changeEdits {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.changeDiff {
+  padding: 4px 10px 8px;
+}
+
+/* Document views. */
+.viewState {
+  padding: 24px 16px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+}
+
+.viewError {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.viewBody {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.viewToggle {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px 0;
+}
+
+.toggleBtn {
+  padding: 2px 10px;
+  border: 1px solid var(--dsw-alias-border-l3);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.toggleActive {
+  border-color: var(--dsw-alias-brand-primary);
+  color: var(--dsw-alias-brand-text);
+  background: var(--dsw-alias-interactive-bg-hover-accent);
+}
+
+.codePre {
+  margin: 0;
+  padding: 12px;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.markdown {
+  padding: 12px 16px 24px;
+  font-size: 14px;
+  line-height: 22px;
+  overflow-wrap: break-word;
+}
+
+.markdown pre {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--dsw-alias-markdown-code-block);
+  overflow-x: auto;
+}
+
+.markdown code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+}
+
+.mdCode {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--dsw-alias-markdown-inline-code);
+}
+
+.markdown blockquote {
+  margin: 0 0 12px;
+  padding: 2px 12px;
+  border-left: 3px solid var(--dsw-alias-border-l3);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.markdown ul,
+.markdown ol {
+  margin: 0 0 12px;
+  padding-left: 24px;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4,
+.markdown h5,
+.markdown h6 {
+  margin: 16px 0 8px;
+  font-weight: 500;
+}
+
+.markdown a {
+  color: var(--dsw-alias-brand-text);
+}
+
+.htmlFrame {
+  flex: 1;
+  width: 100%;
+  min-height: 320px;
+  border: none;
+  background: var(--dsw-alias-bg-base);
+}
+
+/* CodeMirror host for code tabs: fills the body's flex track so the view can
+   scroll (and virtualize) inside its own scroller; the palette is owned by the
+   editor theme, which references the shared --shiki-* / --dsw-* tokens. */
+.codeEditor {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Editable code tab: an optional conflict/save-error banner above the editor,
+   which takes the remaining track. */
+.codeTab {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* The stale-save / on-disk-move banner: a compact warning row with actions. */
+.conflictBanner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--dsw-alias-border-l3);
+  background: var(--dsw-alias-interactive-bg-hover-accent);
+}
+
+.conflictText {
+  flex: 1;
+  min-width: 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+}
+
+.conflictBtn {
+  padding: 2px 10px;
+  border: 1px solid var(--dsw-alias-border-l3);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.conflictBtn:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.conflictPrimary {
+  border-color: var(--dsw-alias-brand-primary);
+  color: var(--dsw-alias-brand-text);
+  background: var(--dsw-alias-interactive-bg-hover-accent);
+}
+
+/* A non-conflict save failure (unwritable, too large): a plain error line. */
+.saveError {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--dsw-alias-border-l3);
+  color: var(--dsw-alias-state-error-primary);
+  font-size: 12px;
+}
+
+/* The discard-guard modal body (the Modal card owns the chrome). */
+.modalBody {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}

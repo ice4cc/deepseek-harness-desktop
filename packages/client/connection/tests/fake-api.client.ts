@@ -97,6 +97,21 @@ export class FakeApiClient implements IApiClient {
   onCreateDirectory: (payload: unknown) => Promise<RpcResponse<{ path: string }>> =
     () => Promise.resolve(ok({ path: '/home/fake/new' }))
 
+  onReadTextFile: (payload: unknown) => Promise<RpcResponse<{
+    path: string
+    content: string
+    size: number
+    version: string
+  }>> =
+    () => Promise.resolve(ok({ path: '/home/fake/doc.md', content: '', size: 0, version: 'fk-v1' }))
+
+  onWriteTextFile: (payload: unknown) => Promise<RpcResponse<{
+    path: string
+    version: string
+    size: number
+  }>> =
+    () => Promise.resolve(ok({ path: '/home/fake/doc.md', version: 'fk-v2', size: 0 }))
+
   private readonly muxConns: StreamConn<MuxFrame>[] = []
   private readonly hostConns: StreamConn<HostFrame>[] = []
   lastSearchSignal: AbortSignal | undefined
@@ -146,6 +161,8 @@ export class FakeApiClient implements IApiClient {
     pickDirectory: payload => this.record('host.pickDirectory', payload, this.onPickDirectory(payload)),
     listDirectory: payload => this.record('host.listDirectory', payload, this.onListDirectory(payload)),
     createDirectory: payload => this.record('host.createDirectory', payload, this.onCreateDirectory(payload)),
+    readTextFile: payload => this.record('host.readTextFile', payload, this.onReadTextFile(payload)),
+    writeTextFile: payload => this.record('host.writeTextFile', payload, this.onWriteTextFile(payload)),
     openPath: payload => this.record('host.openPath', payload, this.onOpenPath(payload)),
   }
 

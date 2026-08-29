@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, realpathSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
@@ -64,6 +64,8 @@ async function harness(
   extras: {
     openPath?: (path: string, signal: AbortSignal) => Promise<void>
     canOpenPath?: () => boolean
+    maxTextBytes?: number
+    maxWriteBytes?: number
   } = {},
 ) {
   const ctx = new Context()
@@ -107,6 +109,8 @@ async function harness(
     cwd: root,
     ...extras.openPath === undefined ? {} : { openPath: extras.openPath },
     ...extras.canOpenPath === undefined ? {} : { canOpenPath: extras.canOpenPath },
+    ...extras.maxTextBytes === undefined ? {} : { maxTextBytes: extras.maxTextBytes },
+    ...extras.maxWriteBytes === undefined ? {} : { maxWriteBytes: extras.maxWriteBytes },
   })
   return { api, ctx, storageDomain, root }
 }
@@ -225,6 +229,171 @@ describe('host.listDirectory / host.createDirectory', () => {
     expect((await api.host.createDirectory(request({ path: '/x', name: 'y' }))).result).toMatchObject({
       ok: false, error: { code: 'directory-picker-unavailable', details: { capability: 'native' } },
     })
+  })
+})
+
+describe('host.readTextFile', () => {
+  it('reads one regular file directly from the host filesystem under every picker kind', async () => {
+    const content = '# 标题\nline two\n'
+    for (const picker of [undefined, BROWSE_STUB]) {
+      const { api, root } = await harness(undefined, picker)
+      const target = join(root, 'notes.txt')
+      writeFileSync(target, content)
+      const read = await api.host.readTextFile(request({ path: target }), new AbortController().signal)
+      // Multi-byte content: the decoded string and the byte size diverge. The
+      // freshness token rides the read's own stat as an opaque non-empty string.
+      expect(read.result).toMatchObject({ ok: true, value: { path: target, content, size: Buffer.byteLength(content) } })
+      if (read.result.ok) expect(typeof read.result.value.version).toBe('string')
+    }
+  })
+
+  it('refuses non-fully-qualified paths instead of rebasing them under the process cwd', async () => {
+    const { api } = await harness()
+    for (const relative of ['', 'notes.txt', './notes.txt', '..']) {
+      expect((await api.host.readTextFile(request({ path: relative }), new AbortController().signal)).result).toMatchObject({
+        ok: false, error: { code: 'file-unreadable' },
+      })
+    }
+  })
+
+  it('throws file-unreadable for a missing target or a directory', async () => {
+    const { api, root } = await harness()
+    const missing = join(root, 'no-such-file')
+    expect((await api.host.readTextFile(request({ path: missing }), new AbortController().signal)).result).toMatchObject({
+      ok: false, error: { code: 'file-unreadable', details: { path: missing } },
+    })
+    const dir = stageDir(root, 'not-a-file')
+    expect((await api.host.readTextFile(request({ path: dir }), new AbortController().signal)).result).toMatchObject({
+      ok: false, error: { code: 'file-unreadable' },
+    })
+  })
+
+  it('bounds one payload at maxTextBytes: over fails file-too-large, exactly at the bound reads', async () => {
+    const { api, root } = await harness(undefined, undefined, { maxTextBytes: 10 })
+    const target = join(root, 'sized.txt')
+    writeFileSync(target, '0123456789') // exactly 10 bytes
+    expect((await api.host.readTextFile(request({ path: target }), new AbortController().signal)).result)
+      .toMatchObject({ ok: true, value: { content: '0123456789' } })
+    writeFileSync(target, '0123456789X') // 11 bytes: one over the bound
+    expect((await api.host.readTextFile(request({ path: target }), new AbortController().signal)).result).toMatchObject({
+      ok: false, error: { code: 'file-too-large', details: { path: target } },
+    })
+  })
+
+  it('divides text from binary on a NUL within the leading 8 KiB', async () => {
+    const { api, root } = await harness()
+    const nuly = join(root, 'nuly.bin')
+    writeFileSync(nuly, Buffer.from([0x7f, 0x00, 0x41]))
+    expect((await api.host.readTextFile(request({ path: nuly }), new AbortController().signal)).result).toMatchObject({
+      ok: false, error: { code: 'binary-file', details: { path: nuly } },
+    })
+    // A NUL just past the probe window does not make a file binary.
+    const lateNul = join(root, 'late-nul.bin')
+    writeFileSync(lateNul, Buffer.concat([Buffer.alloc(8192, 0x61), Buffer.from([0x00])]))
+    expect((await api.host.readTextFile(request({ path: lateNul }), new AbortController().signal)).result)
+      .toMatchObject({ ok: true, value: { size: 8193 } })
+  })
+
+  it('reports an aborted read as cancelled, like the other signal-following RPCs', async () => {
+    const { api, root } = await harness()
+    writeFileSync(join(root, 'notes.txt'), 'text')
+    const abort = new AbortController()
+    abort.abort()
+    expect((await api.host.readTextFile(request({ path: join(root, 'notes.txt') }), abort.signal)).result)
+      .toMatchObject({ ok: false, error: { code: 'cancelled' } })
+  })
+})
+
+describe('host.writeTextFile', () => {
+  it('writes one regular file and returns a fresh baseline the next read reflects', async () => {
+    const { api, root } = await harness()
+    const target = join(root, 'notes.txt')
+    writeFileSync(target, 'original\n')
+    const before = expectOk(await api.host.readTextFile(request({ path: target }), new AbortController().signal))
+    const written = expectOk(await api.host.writeTextFile(
+      request({ path: target, content: 'edited content\n', expectedVersion: before.version }),
+      new AbortController().signal,
+    ))
+    expect(written).toMatchObject({ path: target, size: Buffer.byteLength('edited content\n') })
+    expect(typeof written.version).toBe('string')
+    // The save moved the baseline: a re-read sees the new bytes and a new token.
+    const after = await api.host.readTextFile(request({ path: target }), new AbortController().signal)
+    if (after.result.ok) {
+      expect(after.result.value.content).toBe('edited content\n')
+      expect(after.result.value.version).not.toBe(before.version)
+    } else {
+      throw new Error(`expected a clean re-read, got ${JSON.stringify(after.result)}`)
+    }
+  })
+
+  it('rejects a guarded save whose expectedVersion is stale, leaving the file untouched', async () => {
+    const { api, root } = await harness()
+    const target = join(root, 'conflict.txt')
+    writeFileSync(target, 'baseline-a\n')
+    const baseline = expectOk(await api.host.readTextFile(request({ path: target }), new AbortController().signal))
+    // An external writer moves the file (different size keeps the token distinct).
+    writeFileSync(target, 'externally-changed-by-agent\n')
+    const stale = await api.host.writeTextFile(
+      request({ path: target, content: 'user-edit\n', expectedVersion: baseline.version }),
+      new AbortController().signal,
+    )
+    expect(stale.result).toMatchObject({ ok: false, error: { code: 'file-stale-version', details: { path: target } } })
+    // The guarded save did not clobber the external change.
+    expect(readFileSync(target, 'utf8')).toBe('externally-changed-by-agent\n')
+  })
+
+  it('reports a guarded save of a missing file as stale and an unguarded write to a directory as unwritable', async () => {
+    const { api, root } = await harness()
+    const missing = join(root, 'no-such-file.txt')
+    expect((await api.host.writeTextFile(
+      request({ path: missing, content: 'x', expectedVersion: 'fx-v1' }),
+      new AbortController().signal,
+    )).result).toMatchObject({ ok: false, error: { code: 'file-stale-version', details: { path: missing } } })
+
+    const dir = stageDir(root, 'a-directory')
+    expect((await api.host.writeTextFile(
+      request({ path: dir, content: 'x' }),
+      new AbortController().signal,
+    )).result).toMatchObject({ ok: false, error: { code: 'file-unwritable', details: { path: dir } } })
+  })
+
+  it('refuses non-fully-qualified paths with file-unwritable instead of rebasing them under the cwd', async () => {
+    const { api } = await harness()
+    for (const relative of ['', 'notes.txt', './notes.txt', '..']) {
+      expect((await api.host.writeTextFile(
+        request({ path: relative, content: 'x' }),
+        new AbortController().signal,
+      )).result).toMatchObject({ ok: false, error: { code: 'file-unwritable' } })
+    }
+  })
+
+  it('bounds one payload at maxWriteBytes: over fails file-too-large, exactly at the bound writes', async () => {
+    const { api, root } = await harness(undefined, undefined, { maxWriteBytes: 10 })
+    const target = join(root, 'sized.txt')
+    writeFileSync(target, 'seed\n')
+    const baseline = expectOk(await api.host.readTextFile(request({ path: target }), new AbortController().signal))
+    // Exactly at the bound (10 bytes) writes.
+    expect((await api.host.writeTextFile(
+      request({ path: target, content: '0123456789', expectedVersion: baseline.version }),
+      new AbortController().signal,
+    )).result).toMatchObject({ ok: true })
+    // One byte over the bound fails before any write.
+    expect((await api.host.writeTextFile(
+      request({ path: target, content: '0123456789X' }),
+      new AbortController().signal,
+    )).result).toMatchObject({ ok: false, error: { code: 'file-too-large', details: { path: target } } })
+  })
+
+  it('reports an aborted write as cancelled, like the other signal-following RPCs', async () => {
+    const { api, root } = await harness()
+    const target = join(root, 'notes.txt')
+    writeFileSync(target, 'text\n')
+    const abort = new AbortController()
+    abort.abort()
+    expect((await api.host.writeTextFile(
+      request({ path: target, content: 'x' }),
+      abort.signal,
+    )).result).toMatchObject({ ok: false, error: { code: 'cancelled' } })
   })
 })
 
