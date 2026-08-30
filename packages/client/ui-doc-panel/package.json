@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-client-ui-doc-panel",
   "description": "Document panel plugin: right-side collapsible multi-tab viewer for Markdown, HTML and code with a session file-changes tab",
-  "version": "0.1.0-rc.8",
+  "version": "0.1.2-alpha.1",
   "publishConfig": {
     "access": "public"
   },
