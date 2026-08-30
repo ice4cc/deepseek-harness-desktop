@@ -3,6 +3,10 @@ import { AppWebEntry } from '@deepseek-ai/dsh-client-web'
 
 /** The Electron shell's preload bridge (apps/desktop/src/preload.cjs); absent in plain browsers. */
 interface DesktopShellBridge {
+  /** Shell marker: its presence alone means the page runs inside the desktop shell. */
+  readonly shell: 'desktop'
+  /** The platform that owns the window controls (Electron main's process.platform). */
+  readonly os: string
   /** Re-color the Windows caption-button overlay to the resolved page theme.
    * @param colors - computed body background (overlay fill) and text color (caption glyphs). */
   setThemeColors(colors: { color: string; symbolColor: string }): void
@@ -99,20 +103,31 @@ function sourceOver(
   return [mix(src[0], d[0]), mix(src[1], d[1]), mix(src[2], d[2]), a]
 }
 
-// Desktop-shell marker (`?shell=desktop`, appended by the Electron shell):
-// tags <html> so desktop-only layout rules (traffic-light clearance, window
-// drag regions) apply; plain browser loads keep the stock layout. The shell's
-// own platform arrives as `os` and is mirrored as data-os: rules that depend
-// on where the OS parks its window controls (the toggle's top-left clearance)
-// key on it instead of sniffing the user agent. Runs after every module
-// definition below it: the reporter reads module-level constants that a
-// top-of-file call would still find in the temporal dead zone.
-const shellParams = new URLSearchParams(window.location.search)
-if (shellParams.get('shell') === 'desktop') {
-  document.documentElement.dataset.shell = 'desktop'
-  const os = shellParams.get('os')
-  if (os !== null) document.documentElement.dataset.os = os
+// Desktop-shell marker: tags <html> so desktop-only layout rules (traffic-light
+// clearance, window drag regions) apply; plain browser loads keep the stock
+// layout. The Electron shell carries it through its preload bridge — the loaded
+// URL is a one-shot credential exchange and the server's token-to-cookie
+// redirect strips query parameters, so the marker cannot ride there. A plain
+// browser load with `?shell=desktop&os=<platform>` previews the same layout
+// while its session cookie is already set (no redirect to strip the params).
+// The shell's platform is mirrored as data-os: rules that depend on where the
+// OS parks its window controls (the toggle's top-left clearance) key on it
+// instead of sniffing the user agent. Runs after every module definition below
+// it: the reporter reads module-level constants that a top-of-file call would
+// still find in the temporal dead zone.
+const desktopBridge = window.dshDesktop
+if (desktopBridge !== undefined) {
+  document.documentElement.dataset.shell = desktopBridge.shell
+  document.documentElement.dataset.os = desktopBridge.os
   reportDesktopThemeColors()
+} else {
+  const shellParams = new URLSearchParams(window.location.search)
+  if (shellParams.get('shell') === 'desktop') {
+    document.documentElement.dataset.shell = 'desktop'
+    const os = shellParams.get('os')
+    if (os !== null) document.documentElement.dataset.os = os
+    reportDesktopThemeColors()
+  }
 }
 
 const el = document.getElementById('root')

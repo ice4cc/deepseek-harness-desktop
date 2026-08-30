@@ -119,6 +119,8 @@ function mount(
     nestedSubagent?: boolean
     /** A composer block another plugin raised for this session. */
     composerBlock?: { reason: string }
+    /** The frame's doc-panel collapsed state (owner share). */
+    docCollapsed?: boolean
     /** Mutable view ledger used by registration-order regressions. */
     viewTabs?: ViewTab[]
   } = {},
@@ -187,6 +189,7 @@ function mount(
       return (
         <ConversationSessionHeader
           sessionId={SID}
+          docCollapsed={(owner as { docCollapsed: boolean }).docCollapsed}
           SessionProvider={({ children }) => children}
           useSession={useSession}
           useConversation={useConversation}
@@ -284,6 +287,7 @@ function mount(
   )) as ConversationRootProps['renderSlotChain']
   const props: ConversationRootProps = {
     sessionId: SID,
+    docCollapsed: options.docCollapsed ?? false,
     SessionProvider: ({ children }) => children,
     useSession,
     useConversation,
@@ -301,7 +305,7 @@ function mount(
   }
   const view = render(<ConversationRoot {...props} />)
   return {
-    view, store, wiring, sink, retargetWorkspace, session, conversation, slotCalls, lineageOwners, seatOwners, open,
+    view, props, store, wiring, sink, retargetWorkspace, session, conversation, slotCalls, lineageOwners, seatOwners, open,
     pickerOwner: () => pickerOwner,
     rerender: () => { view.rerender(<ConversationRoot {...props} />) },
   }
@@ -396,6 +400,16 @@ describe('ConversationRoot resident composer', () => {
     ])
     expect(b.lineageOwners.at(-2)?.openTitle).toEqual(expect.any(Function))
     expect(b.lineageOwners.at(-1)?.openTitle).toBeUndefined()
+  })
+
+  it('clears the right-edge utilities from the frame corner while the doc panel is closed', () => {
+    const b = mount(sessionSnapshotOf())
+    const utilities = () => b.view.container.querySelector('[class*="headerUtilities"]') as HTMLElement
+    expect(utilities().className).not.toContain('headerUtilitiesCleared')
+    // The frame collapses the doc panel: its portaled reopen button owns the
+    // top-right corner, so the header's right-edge utilities clear that zone.
+    act(() => { b.props.docCollapsed = true; b.rerender() })
+    expect(utilities().className).toContain('headerUtilitiesCleared')
   })
 
   it('active phase: fixed header outside the scrollport; sticky composer seat inside it', () => {

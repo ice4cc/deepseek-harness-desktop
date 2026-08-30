@@ -129,7 +129,7 @@ function WidthHandle(props: {
 }
 
 export function ConversationRoot({
-  sessionId, useSession, useSessions, useSessionPendingInteraction,
+  sessionId, docCollapsed, useSession, useSessions, useSessionPendingInteraction,
   useWorkspaces, useConversation, useInput, useComposerBlock,
   renderSlot, renderSlotChain, selectWorkspace, t,
 }: ConversationRootProps) {
@@ -377,7 +377,9 @@ export function ConversationRoot({
 
   return (
     <div ref={rootResizeRef} className={css.root} data-phase={phase}>
-      {sessionId === undefined ? null : renderSlot('conversation.session.header', {})}
+      {/* The header clears the frame's top-right corner while the doc panel
+          is closed (its portaled reopen button lives there). */}
+      {sessionId === undefined ? null : renderSlot('conversation.session.header', { docCollapsed })}
       <div className={css.scrollBody} data-conversation-scroll="">
         {sessionId === undefined ? null : renderSlot('conversation.session', {})}
         {composerSeat}

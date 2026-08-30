@@ -189,7 +189,8 @@ describe('AppFrame', () => {
     expect(keys).toContain('docPanel')
     expect(keys).toContain('details')
     expect(keys).not.toContain('conversation.empty')
-    expect(slotCalls.find(c => c.key === 'conversation')!.props).toEqual({})
+    // The layout store starts with the doc panel closed (0 = collapsed).
+    expect(slotCalls.find(c => c.key === 'conversation')!.props).toEqual({ docCollapsed: true })
     expect(slotCalls.find(c => c.key === 'details')!.props).toEqual({})
   })
 
@@ -360,14 +361,17 @@ describe('AppFrame', () => {
   })
 
   it('drag handles disappear for collapsed columns', () => {
-    const { frame, instance } = mountFrame()
+    const { frame, instance, slotCalls } = mountFrame()
     expect(frame.querySelectorAll('[class*="handle"]')).toHaveLength(1)
     act(() => { instance.actions.openDocPanel() })
     expect(frame.querySelectorAll('[class*="handle"]')).toHaveLength(2)
+    // The conversation owner share mirrors the column state for clearance.
+    expect(slotCalls.filter(c => c.key === 'conversation').at(-1)!.props).toEqual({ docCollapsed: false })
     act(() => { instance.actions.openDetails() })
     expect(frame.querySelectorAll('[class*="handle"]')).toHaveLength(3)
     act(() => { instance.actions.closeDocPanel() })
     expect(frame.querySelectorAll('[class*="handle"]')).toHaveLength(2)
+    expect(slotCalls.filter(c => c.key === 'conversation').at(-1)!.props).toEqual({ docCollapsed: true })
     act(() => { instance.actions.toggleSidebar() })
     expect(frame.querySelectorAll('[class*="handle"]')).toHaveLength(1)
   })

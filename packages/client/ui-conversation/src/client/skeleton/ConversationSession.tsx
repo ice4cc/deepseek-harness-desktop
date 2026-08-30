@@ -65,7 +65,7 @@ function equalBreadcrumbs(left: readonly Breadcrumb[], right: readonly Breadcrum
  * @returns the hidden blank-session header or visible title and tabs.
  */
 export function ConversationSessionHeader({
-  sessionId, useSession, useSessions, useConversation, useConversationViews, useStore, actions,
+  sessionId, docCollapsed, useSession, useSessions, useConversation, useConversationViews, useStore, actions,
   renderSlot, open, t,
 }: ConversationSessionHeaderProps) {
   const tabs = useConversationViews(value => value)
@@ -141,7 +141,10 @@ export function ConversationSessionHeader({
                 {renderSlot('conversation.session.header.actions', {})}
               </div>
             </div>
-            <div className={css.headerUtilities}>
+            {/* While the doc panel is closed, its portaled reopen button owns
+                the frame's top-right corner: keep the right-edge utilities
+                clear of that zone. */}
+            <div className={clsx(css.headerUtilities, docCollapsed && css.headerUtilitiesCleared)}>
               {renderSlot('conversation.session.header.utilities', {})}
             </div>
           </div>

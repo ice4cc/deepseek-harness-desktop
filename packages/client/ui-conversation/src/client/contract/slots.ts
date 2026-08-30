@@ -94,7 +94,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     /** Strict per-Session Conversation body. */
     'conversation.session': { kind: 'single'; scope: 'session' }
     /** Strict per-Session title, actions, and View navigation. */
-    'conversation.session.header': { kind: 'single'; scope: 'session' }
+    'conversation.session.header': { kind: 'single'; scope: 'session'; owner: ConversationHeaderOwnerProps }
     /** Optional replacement for one Session breadcrumb title. */
     'conversation.session.header.lineage': {
       kind: 'single'
@@ -181,6 +181,12 @@ export interface HeroAgentPresetOwnerProps {
 export interface ConversationHeaderActionOwnerProps {
   /** Marker field: entries receive no owner-specific values. */
   children?: never
+}
+
+/** Frame clearance facts handed to the strict Session header. */
+export interface ConversationHeaderOwnerProps {
+  /** True when the doc panel column is closed (its portaled reopen button owns the frame's top-right corner). */
+  docCollapsed: boolean
 }
 
 /** Plain breadcrumb data handed to the optional lineage renderer. */

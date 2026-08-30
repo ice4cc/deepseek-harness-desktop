@@ -1,7 +1,10 @@
 // The document panel root: the occupant of the layout-owned docPanel grid
-// column (between the conversation and the details columns). Collapsed it
-// renders a reopen icon button portaled into the frame's overlay layer;
-// expanded it fills the column with the tab strip and the active tab's view.
+// column (between the conversation and the details columns). One corner
+// toggle portaled into the frame's overlay layer is always visible — its
+// label and action flip with the column state, so close is a pure track
+// animation under a stationary button. The column body stays mounted in both
+// states: collapsed, the track animates to zero width and clips it; expanded,
+// the body fills the column with the tab strip and the active tab's view.
 // Auto-follow watches the fileChanges projection for newer lastAt values per
 // path (baseline reset on session switch) and opens the changed file, opening
 // the panel column while following is on.
@@ -17,6 +20,12 @@ import { TabBar } from './TabBar.tsx'
 import { DocView } from './views.tsx'
 import type { CodeTabControls } from './CodeTab.tsx'
 import css from './DocPanelRoot.module.css'
+
+// React 18's JSX types predate inert, so the attribute rides a spread object.
+// Chromium keeps an inert subtree in the accessibility tree (exposed as
+// disabled), so the collapsed body also carries aria-hidden to leave assistive
+// tech entirely; neither attribute hides its paint.
+const INERT = { inert: '', 'aria-hidden': true }
 
 /**
  * The panel entry (see module doc). All session data arrives through the
@@ -85,23 +94,9 @@ export function DocPanelRoot({
   // pending path (null = no prompt) drives the discard-or-cancel modal.
   const [pendingClosePath, setPendingClosePath] = useState<string | null>(null)
 
-  // Collapsed: the column track is zero width, so the reopen affordance is
-  // portaled into the frame's overlay layer (queried per render so an
-  // HMR-swapped layer node is picked up on the next paint).
-  if (collapsed) {
-    const overlayLayer = document.querySelector<HTMLElement>('[data-shell-overlay]')
-    return overlayLayer !== null ? createPortal(
-      // side="bottom": both toggles sit at the viewport's right edge, where a
-      // default right-side bubble slides back over the anchor and swallows the
-      // click's mouseup (focus-on-mousedown shows it immediately).
-      <Tooltip label={t('panel.expand')} side="bottom" delayMs={500}>
-        <button type="button" className={css.reopenBtn} aria-label={t('panel.expand')} onClick={() => { openPanel() }}>
-          <IconPanelRightOutline16 size={16} />
-        </button>
-      </Tooltip>,
-      overlayLayer,
-    ) : null
-  }
+  // The corner toggle portals into the frame's overlay layer (queried per
+  // render so an HMR-swapped layer node is picked up on the next paint).
+  const overlayLayer = document.querySelector<HTMLElement>('[data-shell-overlay]')
 
   const activeTab = panel?.activeId !== undefined && panel.activeId !== null && panel.activeId !== CHANGES_TAB_ID
     ? state.tabs[panel.activeId]
@@ -140,17 +135,34 @@ export function DocPanelRoot({
 
   return (
     <>
-      <section className={css.panel} aria-label={t('panel.title')}>
+      {overlayLayer !== null && createPortal(
+        // One persistent corner toggle in both states (the sidebar
+        // floating-toggle lesson): the node never unmounts and never moves, so
+        // close is a pure track animation under a stationary button; its label
+        // and action flip with the column state. side="bottom" keeps the bubble
+        // off the viewport's right edge, where a default right-side bubble
+        // slides back over the anchor and swallows the click's mouseup (focus-
+        // on-mousedown shows it immediately); Tooltip arms its delay timer only
+        // on a real pointer move, so the synthetic mouseenter a close dispatches
+        // under a stationary cursor never pops a bubble.
+        <Tooltip label={collapsed ? t('panel.expand') : t('panel.collapse')} side="bottom" delayMs={500}>
+          <button type="button" className={css.cornerToggle} aria-label={collapsed ? t('panel.expand') : t('panel.collapse')} onClick={() => { if (collapsed) openPanel(); else closePanel() }}>
+            <IconPanelRightOutline16 size={16} />
+          </button>
+        </Tooltip>,
+        overlayLayer,
+      )}
+      {/* The column body stays mounted through close (the details-column
+          pattern; the docCol contract is never unmount on close): the track
+          animates to zero and clips it as it goes, so close never flashes an
+          empty strip. Collapsed, INERT drops the body from focus and
+          interaction and aria-hidden takes it out of the accessibility tree
+          (Chromium keeps inert subtrees in that tree, marked disabled). */}
+      <section className={css.panel} aria-label={t('panel.title')} {...(collapsed ? INERT : undefined)}>
         <header className={css.header}>
-          {/* Window title-bar band (draggable on the desktop shell); holds the
-              collapse button at the right edge. */}
-          <div className={css.titlebar}>
-            <Tooltip label={t('panel.collapse')} side="bottom" delayMs={500}>
-              <button type="button" className={css.collapseBtn} aria-label={t('panel.collapse')} onClick={() => { closePanel() }}>
-                <IconPanelRightOutline16 size={16} />
-              </button>
-            </Tooltip>
-          </div>
+          {/* Window title-bar band (draggable on the desktop shell); the corner
+              toggle is portaled into the frame's overlay layer above it. */}
+          <div className={css.titlebar} />
           <div className={css.regionRow}>
             <span className={css.regionTitle}>{t('panel.title')}</span>
             <button

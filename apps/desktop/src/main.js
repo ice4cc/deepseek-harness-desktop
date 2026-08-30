@@ -46,7 +46,7 @@ const DARK_SYMBOLS = '#fafafa'
 // single-instance lock) must be unique per product: without this, Electron
 // falls back to the package.json name, which collides with other builds of
 // this shell that share the workspace package name.
-app.setName('DeepSeek Harness Desktop')
+app.setName(process.env.DSH_DESKTOP_APP_NAME ?? 'DeepSeek Harness Desktop')
 
 /**
  * Locate the dsh installation for the dev (repo checkout) and packaged layouts.
@@ -250,7 +250,8 @@ function createWindow(url) {
     ...(process.platform !== 'darwin' ? { icon: path.join(SRC_DIR, '..', 'build', 'icon.png') } : {}),
     // macOS and Windows both hide the OS caption bar so the page's own top
     // strip carries the window (the sidebar brand row and the conversation
-    // header carry the desktop-shell layout through `?shell=desktop`): macOS
+    // header carry the desktop-shell layout through the preload bridge's
+    // shell marker): macOS
     // insets the traffic lights; Windows floats only the native min/max/close
     // buttons over that same 44 px band. The overlay is solid — the Windows
     // WCO has no transparency — so it starts on the dark window surface and
@@ -283,15 +284,11 @@ function createWindow(url) {
       }
     })
   }
-  // The shell marker lets the web page apply desktop-only layout (traffic-light
-  // clearance, window drag regions); plain browser loads stay untouched. The
-  // platform parameter mirrors process.platform for rules that depend on where
-  // the OS parks its window controls (the toggle's top-left clearance exists
-  // only for the macOS traffic lights).
-  const target = new URL(url)
-  target.searchParams.set('shell', 'desktop')
-  target.searchParams.set('os', process.platform)
-  void window.loadURL(target.toString())
+  // The shell marker (desktop-only layout: traffic-light clearance, window
+  // drag regions) rides the preload bridge, not this URL: the loaded URL is a
+  // one-shot credential exchange and the server's token-to-cookie redirect
+  // strips query parameters. Plain browser loads stay untouched.
+  void window.loadURL(url)
   return window
 }
 

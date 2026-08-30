@@ -337,6 +337,7 @@ function mount(fixture: Awaited<ReturnType<typeof bench>>) {
   }
   const standardProps = {
     sessionId: SID,
+    docCollapsed: false,
     useSession,
     useTrajectory,
     useChat,
@@ -783,7 +784,9 @@ describe('timeline projection', () => {
       expect(span?.getAttribute('data-assistant-timing')).toBe('true')
       expect(span?.style.getPropertyValue('--trajectory-assistant-ttft')).toBe('25%')
 
+      // Hover arms on the entering pointer move (Tooltip trigger model).
       fireEvent.mouseEnter(span as HTMLElement)
+      fireEvent.mouseMove(span as HTMLElement)
       act(() => { vi.advanceTimersByTime(499) })
       expect(view.container.querySelector('[role="tooltip"]')).toBeNull()
       act(() => { vi.advanceTimersByTime(1) })

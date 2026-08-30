@@ -24,7 +24,7 @@ cordis HMR 服务需要 `--expose-internals`：它依赖 Node 的内部 ESM 加�
 
 ## 窗口一体化
 
-macOS 与 Windows 都隐藏系统标题栏，让页面自绘的顶部条带承载窗口：macOS 将红绿灯内嵌（`titleBarStyle: 'hiddenInset'`），Windows 只把原生最小化/最大化/关闭按钮浮在同一条 44 px 条带上（`titleBarStyle: 'hidden'` + `titleBarOverlay`）；Linux 保留原生窗口框与菜单栏。两个无边框平台都开启 `acceptFirstMouse`——点击未聚焦窗口直接生效而非仅激活（浮动展开按钮需要它）。Windows 去掉默认的内嵌菜单栏（`Menu.setApplicationMenu(null)`；macOS 保留屏幕顶部的系统菜单栏）——它所携带的快捷键（刷新、缩放、devtools）不属于产品面，源码启动保留 F12 作为窗口级 devtools 入口。Windows 覆盖层是实色的（WCO 不支持透明），因此初始取深色窗口表面，随后跟随页面解析出的主题：沙箱 preload（`src/preload.cjs`）暴露 `window.dshDesktop.setThemeColors`，web 入口的 desktop 分支上报按钮区底下实际可见的颜色——body 背景与该点叠放的全屏层（如设置遮罩）合成后的结果——在加载时、主题重写 body 时以及 300 ms 轮询捕获覆盖层开合时各报一次。壳在加载 URL 上追加 `?shell=desktop&os=<platform>`，`apps/web/src/main.ts` 据此给 `<html>` 打上 `data-shell="desktop" data-os="<platform>"` 标记。以这些属性为键的桌面专属布局规则（追加块与少量插入，位于 `ui-sidebar` SidebarRoot、`ui-layout` AppFrame、`ui-conversation` ConversationRoot 与模态层——`ui-settings-general` SettingsRoot 和 `ui-primitives` Modal/OnboardingSurface）：
+macOS 与 Windows 都隐藏系统标题栏，让页面自绘的顶部条带承载窗口：macOS 将红绿灯内嵌（`titleBarStyle: 'hiddenInset'`），Windows 只把原生最小化/最大化/关闭按钮浮在同一条 44 px 条带上（`titleBarStyle: 'hidden'` + `titleBarOverlay`）；Linux 保留原生窗口框与菜单栏。两个无边框平台都开启 `acceptFirstMouse`——点击未聚焦窗口直接生效而非仅激活（浮动展开按钮需要它）。Windows 去掉默认的内嵌菜单栏（`Menu.setApplicationMenu(null)`；macOS 保留屏幕顶部的系统菜单栏）——它所携带的快捷键（刷新、缩放、devtools）不属于产品面，源码启动保留 F12 作为窗口级 devtools 入口。Windows 覆盖层是实色的（WCO 不支持透明），因此初始取深色窗口表面，随后跟随页面解析出的主题：沙箱 preload（`src/preload.cjs`）暴露 `window.dshDesktop.setThemeColors`，web 入口的 desktop 分支上报按钮区底下实际可见的颜色——body 背景与该点叠放的全屏层（如设置遮罩）合成后的结果——在加载时、主题重写 body 时以及 300 ms 轮询捕获覆盖层开合时各报一次。壳通过沙箱 preload 携带自身标记——`window.dshDesktop.shell` 与 `.os`（加载的 URL 是一次性凭证交换：服务器的 token 换 cookie 重定向会剥掉全部查询参数，标记无法随 URL 传递）——`apps/web/src/main.ts` 据此给 `<html>` 打上 `data-shell="desktop" data-os="<platform>"` 标记。以这些属性为键的桌面专属布局规则（追加块与少量插入，位于 `ui-sidebar` SidebarRoot、`ui-layout` AppFrame、`ui-conversation` ConversationRoot 与模态层——`ui-settings-general` SettingsRoot 和 `ui-primitives` Modal/OnboardingSurface）：
 
 - **红绿灯让位**——侧栏品牌行变为两行：第一行是钉在红绿灯高度的折叠/展开按钮，下方是全宽字标。按钮的 x 偏移按操作系统区分（`data-os`）：macOS 需避开内嵌的红绿灯（距窗口左缘 94 px）；Windows 与 Linux 左上角没有窗口控件，按钮落在侧栏内容边缘（12 px）——展开时在字标上方，收起时浮在会话空白角上。
 - **零宽折叠**——收起的侧栏取零宽而非默认的 56 px 窄栏；其竖排菜单项被隐藏。纯浏览器保留带边框窄栏。
@@ -63,7 +63,7 @@ macOS 与 Windows 都隐藏系统标题栏，让页面自绘的顶部条带承�
 | `pnpm-workspace.yaml` | `allowBuilds`: `electron: true`, `electron-winstaller: false` | pnpm 10+ 拦截未列出的构建脚本；需要 Electron 二进制下载，Windows NSIS 工具链在此为 no-op |
 | `tsconfig.base.json` | `dsh-client-ui-directory-picker-{native,browse}` 的两个 `paths` 条目 | 这些客户端包缺少每个 host/client-group 包都需要的显式条目（上游 bug；缺它源码启动在 Node 24 上失败） |
 | 根 `package.json` | `desktop:dev`、`desktop:package` 脚本 | 便捷入口 |
-| `apps/web/src/main.ts` | `?shell=desktop&os=<platform>` 标记检测（给 `<html>` 打 `data-shell="desktop" data-os="<platform>"`）+ 向壳 preload 上报标题栏按钮区实际可见的颜色 | 窗口一体化——见上节 |
+| `apps/web/src/main.ts` | preload 桥 shell 标记检测（`window.dshDesktop.shell`/`.os`；给 `<html>` 打 `data-shell="desktop" data-os="<platform>"`）+ 向壳 preload 上报标题栏按钮区实际可见的颜色 | 窗口一体化——见上节 |
 | `packages/client/ui-layout/.../AppFrame.tsx` + `.module.css` | desktop 下收起侧栏的零宽轨道；收起时无边框缝 | 窗口一体化——见上节 |
 | `packages/client/ui-sidebar/.../SidebarRoot.tsx` + `.module.css` | 常驻 portal 按钮、两行品牌行、收起时隐藏菜单项；品牌行在 `<html data-portal-menu-open>` 存续期间让位 `no-drag` | 窗口一体化——见上节 |
 | `packages/client/ui-sidebar/package.json` | portal 导入所需的 `react-dom` 依赖（+ `@types/react-dom`） | 窗口一体化——见上节 |

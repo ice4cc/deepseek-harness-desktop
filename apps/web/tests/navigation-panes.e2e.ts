@@ -294,7 +294,10 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
     if (buttonBox === null || headerBox === null) {
       throw new Error('Session Header export geometry is unavailable')
     }
-    expect(headerBox.x + headerBox.width - (buttonBox.x + buttonBox.width)).toBeLessThanOrEqual(32)
+    // The doc panel is closed here, so the right-edge utility carries the
+    // reopen-button clearance on top of the header's 28px right padding:
+    // 28 (padding) + 20 (clearance for the portaled reopen button) + 4 slack.
+    expect(headerBox.x + headerBox.width - (buttonBox.x + buttonBox.width)).toBeLessThanOrEqual(52)
     const responsePromise = page.waitForResponse(response =>
       response.request().method() === 'HEAD'
       && new URL(response.url()).pathname === '/api/session.export', { timeout: 30_000 })

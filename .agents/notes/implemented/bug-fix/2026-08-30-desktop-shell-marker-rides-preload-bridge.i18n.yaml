@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-30-desktop-shell-marker-rides-preload-bridge.md
+2026-08-30-desktop-shell-marker-rides-preload-bridge.md: d8c7b410ba009159b70c68b7cf3998e34c34a35a
+2026-08-30-desktop-shell-marker-rides-preload-bridge.zh.md: 18a2a889c6a47acaeb103a151203d26452498ad0

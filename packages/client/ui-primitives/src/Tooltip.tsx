@@ -1,8 +1,23 @@
 // Cloning the anchor preserves its layout context. Fixed positioning lets the
 // bubble escape ancestor overflow clipping without a portal.
+//
+// Trigger model: hover arms the delay timer on the pointer MOVE that enters
+// the anchor, never on mouseenter alone — an element that appears under a
+// parked cursor (a panel toggling open/closed at fixed coordinates) receives
+// a synthetic mouseenter with no movement and must not pop its own bubble. A
+// genuine hover's crossing move targets the anchor in the same event batch as
+// the enter, so it arms within the same frame. A press cancels any pending
+// hover show: a real hand always moves before clicking, so the timer is often
+// armed and would otherwise fire mid-press, popping the label exactly when the
+// user acts; the next real move re-arms. Focus shows immediately only when it
+// is not press-originated: Chromium reports detail === 0 on every focus event
+// (mouse clicks included), so a press is detected from the anchor's own
+// pointerdown arriving in the same gesture — a click must not flash its own
+// label for the duration of the press, while keyboard Tab focus stays
+// immediate.
 
 import { cloneElement, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { FocusEventHandler, MouseEventHandler, MutableRefObject, ReactElement, Ref } from 'react'
+import type { FocusEventHandler, MouseEventHandler, MutableRefObject, PointerEventHandler, ReactElement, Ref } from 'react'
 import css from './Tooltip.module.css'
 
 /** Bubble placement relative to the anchor. */
@@ -11,7 +26,9 @@ export type TooltipSide = 'right' | 'bottom' | 'top'
 /** Props Tooltip injects into its anchor child; the child's own handlers are chained ahead of the tooltip's. */
 interface AnchorProps {
   ref?: Ref<HTMLElement> | undefined
+  onPointerDown?: PointerEventHandler | undefined
   onMouseEnter?: MouseEventHandler | undefined
+  onMouseMove?: MouseEventHandler | undefined
   onMouseLeave?: MouseEventHandler | undefined
   onFocus?: FocusEventHandler | undefined
   onBlur?: FocusEventHandler | undefined
@@ -19,11 +36,15 @@ interface AnchorProps {
 
 type TooltipLabel = string | (() => string)
 
+/** A focus landing this long after a pointerdown on the anchor is the press's own focus; anything later is keyboard or programmatic. */
+const PRESS_FOCUS_WINDOW_MS = 300
+
 /**
  * Attach a hover/focus tooltip to an anchor element.
  * @param props.label - bubble text, or a resolver evaluated only while the bubble is visible.
  * @param props.side - placement relative to the anchor (default 'right').
- * @param props.delayMs - hover delay in milliseconds; keyboard focus remains immediate.
+ * @param props.delayMs - hover delay in milliseconds, counted from the entering
+ * pointer move; non-press focus (keyboard Tab) remains immediate.
  * @param props.disabled - suppress the bubble while true; the anchor renders identically so
  * toggling never remounts it (which would cut its CSS transitions).
  * @param props.maxWidth - bubble width cap in pixels, for labels long enough that the default
@@ -92,6 +113,12 @@ export function Tooltip({ label, side = 'right', delayMs = 0, disabled = false, 
   // Hover and focus are independent triggers: the bubble hides only after
   // BOTH clear (hovering away from a focused anchor must not drop it).
   const triggers = useRef({ hover: false, focus: false })
+  // Arms once per stay: the first move inside starts the delay timer; later
+  // moves leave it running.
+  const armed = useRef(false)
+  // Chromium reports detail === 0 even for mouse-click focus, so the anchor's
+  // own pointerdown timestamp is the only reliable press signal.
+  const lastPressAt = useRef(0)
 
   // Disabling mid-hover (e.g. clicking a rail control expands the sidebar)
   // must drop an already-visible bubble: no mouseleave fires.
@@ -140,9 +167,33 @@ export function Tooltip({ label, side = 'right', delayMs = 0, disabled = false, 
     <>
       {cloneElement(children, {
         ref: mergedRef,
-        onMouseEnter: (e) => { children.props.onMouseEnter?.(e); triggers.current.hover = true; showAfterHoverDelay() },
+        onPointerDown: (e) => {
+          children.props.onPointerDown?.(e)
+          lastPressAt.current = Date.now()
+          // A press is an explicit action; its label popping mid-press or
+          // right after release reads as a flash. Cancel the pending show and
+          // require a fresh move to re-arm (a bubble already visible from a
+          // completed hover stays: the pointer is still on the anchor).
+          cancelShow()
+          armed.current = false
+        },
+        onMouseEnter: (e) => { children.props.onMouseEnter?.(e); triggers.current.hover = true; armed.current = false },
+        onMouseMove: (e) => {
+          children.props.onMouseMove?.(e)
+          if (!triggers.current.hover || armed.current) return
+          armed.current = true
+          showAfterHoverDelay()
+        },
         onMouseLeave: (e) => { children.props.onMouseLeave?.(e); triggers.current.hover = false; cancelShow(); setPos(null) },
-        onFocus: (e) => { children.props.onFocus?.(e); triggers.current.focus = true; cancelShow(); show() },
+        onFocus: (e) => {
+          children.props.onFocus?.(e)
+          // A press-originated focus (pointerdown on this anchor in the same
+          // gesture) must not flash the bubble for the duration of the click.
+          if (Date.now() - lastPressAt.current <= PRESS_FOCUS_WINDOW_MS) return
+          triggers.current.focus = true
+          cancelShow()
+          show()
+        },
         onBlur: (e) => { children.props.onBlur?.(e); triggers.current.focus = false; hide() },
       })}
       {pos !== null && (

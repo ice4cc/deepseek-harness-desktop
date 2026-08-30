@@ -5,6 +5,13 @@ import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 
 afterEach(cleanup)
 
+// Hover arms on the entering pointer move (see the module trigger model), so
+// a genuine hover in these tests is always enter + move.
+const hover = (anchor: HTMLElement): void => {
+  fireEvent.mouseEnter(anchor)
+  fireEvent.mouseMove(anchor)
+}
+
 describe('Tooltip', () => {
   it('resolves lazy labels only after the bubble becomes visible', () => {
     vi.useFakeTimers()
@@ -16,7 +23,7 @@ describe('Tooltip', () => {
         </Tooltip>,
       )
       expect(label).not.toHaveBeenCalled()
-      fireEvent.mouseEnter(screen.getByText('anchor'))
+      hover(screen.getByText('anchor'))
       act(() => { vi.advanceTimersByTime(499) })
       expect(label).not.toHaveBeenCalled()
       act(() => { vi.advanceTimersByTime(1) })
@@ -36,18 +43,141 @@ describe('Tooltip', () => {
         </Tooltip>,
       )
       const anchor = screen.getByText('anchor')
-      fireEvent.mouseEnter(anchor)
+      hover(anchor)
       act(() => { vi.advanceTimersByTime(499) })
       expect(screen.queryByRole('tooltip')).toBeNull()
       fireEvent.mouseLeave(anchor)
       act(() => { vi.advanceTimersByTime(1) })
       expect(screen.queryByRole('tooltip')).toBeNull()
-      fireEvent.mouseEnter(anchor)
+      hover(anchor)
       act(() => { vi.advanceTimersByTime(500) })
       expect(screen.getByRole('tooltip').textContent).toBe('Timing details')
       fireEvent.mouseLeave(anchor)
       fireEvent.focus(anchor)
       expect(screen.getByRole('tooltip').textContent).toBe('Timing details')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not arm the hover timer for an element that appears under a parked cursor', () => {
+    vi.useFakeTimers()
+    try {
+      render(
+        <Tooltip label="Parked" delayMs={500}>
+          <button type="button">anchor</button>
+        </Tooltip>,
+      )
+      const anchor = screen.getByText('anchor')
+      // A synthetic mouseenter with no pointer movement (the browser re-runs
+      // hit-testing when a node appears under the stationary cursor) must not
+      // show, however long the cursor stays.
+      fireEvent.mouseEnter(anchor)
+      act(() => { vi.advanceTimersByTime(5_000) })
+      expect(screen.queryByRole('tooltip')).toBeNull()
+      // A real move inside is genuine intent: it arms the delay from there.
+      fireEvent.mouseMove(anchor)
+      act(() => { vi.advanceTimersByTime(500) })
+      expect(screen.getByRole('tooltip').textContent).toBe('Parked')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('arms once per stay: a second move does not restart the delay timer', () => {
+    vi.useFakeTimers()
+    try {
+      render(
+        <Tooltip label="Once" delayMs={500}>
+          <button type="button">anchor</button>
+        </Tooltip>,
+      )
+      const anchor = screen.getByText('anchor')
+      fireEvent.mouseEnter(anchor)
+      fireEvent.mouseMove(anchor)
+      // A continued move 90 ms before the deadline must not push it back.
+      act(() => { vi.advanceTimersByTime(410) })
+      fireEvent.mouseMove(anchor)
+      act(() => { vi.advanceTimersByTime(90) })
+      expect(screen.getByRole('tooltip').textContent).toBe('Once')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('ignores a move that arrives without a stay', () => {
+    vi.useFakeTimers()
+    try {
+      render(
+        <Tooltip label="Outside" delayMs={500}>
+          <button type="button">anchor</button>
+        </Tooltip>,
+      )
+      fireEvent.mouseMove(screen.getByText('anchor'))
+      act(() => { vi.advanceTimersByTime(10_000) })
+      expect(screen.queryByRole('tooltip')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not flash the bubble for press-originated focus (the mousedown of a click)', () => {
+    render(
+      <Tooltip label="Timing details" delayMs={500}>
+        <button type="button">anchor</button>
+      </Tooltip>,
+    )
+    const anchor = screen.getByText('anchor')
+    // The press's own focus (pointerdown on the anchor in the same gesture)
+    // must not pop the bubble, and its blur must not hide anything.
+    fireEvent.pointerDown(anchor)
+    fireEvent.focus(anchor)
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    fireEvent.blur(anchor)
+    expect(screen.queryByRole('tooltip')).toBeNull()
+  })
+
+  it('shows immediately for a keyboard focus that lands after the press window', () => {
+    vi.useFakeTimers()
+    try {
+      render(
+        <Tooltip label="Tabbed" delayMs={500}>
+          <button type="button">anchor</button>
+        </Tooltip>,
+      )
+      const anchor = screen.getByText('anchor')
+      // A press, then a Tab focus well outside the 300 ms press window: the
+      // bubble shows immediately, as keyboard focus always has.
+      fireEvent.pointerDown(anchor)
+      act(() => { vi.advanceTimersByTime(301) })
+      fireEvent.focus(anchor)
+      expect(screen.getByRole('tooltip').textContent).toBe('Tabbed')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('cancels the pending hover show when the anchor is pressed before the deadline', () => {
+    vi.useFakeTimers()
+    try {
+      render(
+        <Tooltip label="Pressed" delayMs={500}>
+          <button type="button">anchor</button>
+        </Tooltip>,
+      )
+      const anchor = screen.getByText('anchor')
+      // A real hand moves onto the anchor (arming the timer) and clicks before
+      // the deadline: the bubble must not pop mid-press or right after release.
+      hover(anchor)
+      act(() => { vi.advanceTimersByTime(450) })
+      fireEvent.pointerDown(anchor)
+      fireEvent.mouseUp(anchor)
+      act(() => { vi.advanceTimersByTime(500) })
+      expect(screen.queryByRole('tooltip')).toBeNull()
+      // A fresh move after the press re-arms: genuine continued hover still shows.
+      fireEvent.mouseMove(anchor)
+      act(() => { vi.advanceTimersByTime(500) })
+      expect(screen.getByRole('tooltip').textContent).toBe('Pressed')
     } finally {
       vi.useRealTimers()
     }
@@ -60,7 +190,7 @@ describe('Tooltip', () => {
       </Tooltip>,
     )
     const anchor = screen.getByText('anchor')
-    fireEvent.mouseEnter(anchor)
+    hover(anchor)
     const bubble = screen.getByRole('tooltip')
     expect(bubble.textContent).toBe('Open sidebar')
     expect(bubble.getAttribute('data-side')).toBe('right')
@@ -101,7 +231,7 @@ describe('Tooltip', () => {
         <button type="button">anchor</button>
       </Tooltip>,
     )
-    fireEvent.mouseEnter(screen.getByText('anchor'))
+    hover(screen.getByText('anchor'))
 
     // The stylesheet's half-viewport cap stays the default; this one overrides it.
     expect(screen.getByRole('tooltip').style.maxWidth).toBe('360px')
@@ -115,7 +245,7 @@ describe('Tooltip', () => {
           <button type="button">anchor</button>
         </Tooltip>,
       )
-      fireEvent.mouseEnter(screen.getByText('anchor'))
+      hover(screen.getByText('anchor'))
       // pos.x = 1000 (anchor center); measured right edge 1100 overflows the
       // 1024 viewport's 12px safe margin (limit 1012) by 88, so the clamp
       // shifts left to 912.
@@ -137,7 +267,7 @@ describe('Tooltip', () => {
           <button type="button">anchor</button>
         </Tooltip>,
       )
-      fireEvent.mouseEnter(screen.getByText('anchor'))
+      hover(screen.getByText('anchor'))
       expect(screen.getByRole('tooltip').style.left).toBe('862px')
 
       view.rerender(
@@ -164,7 +294,7 @@ describe('Tooltip', () => {
           <button type="button">anchor</button>
         </Tooltip>,
       )
-      fireEvent.mouseEnter(screen.getByText('anchor'))
+      hover(screen.getByText('anchor'))
       // pos.x = 30 (anchor center); measured left edge -20 underflows the
       // 12px safe margin by 32, so the clamp shifts right to 62.
       expect(screen.getByRole('tooltip').style.left).toBe('62px')
@@ -192,7 +322,7 @@ describe('Tooltip', () => {
           <button type="button">anchor</button>
         </Tooltip>,
       )
-      fireEvent.mouseEnter(screen.getByText('anchor'))
+      hover(screen.getByText('anchor'))
       const bubble = screen.getByRole('tooltip')
       // There is room above, so the requested side stands: the bubble's own
       // top sits at the anchor's top less the 8px gutter.
@@ -214,7 +344,7 @@ describe('Tooltip', () => {
           <button type="button">anchor</button>
         </Tooltip>,
       )
-      fireEvent.mouseEnter(screen.getByText('anchor'))
+      hover(screen.getByText('anchor'))
       const bubble = screen.getByRole('tooltip')
       expect(bubble.getAttribute('data-side')).toBe('top')
       expect(bubble.style.top).toBe('592px')
@@ -231,7 +361,7 @@ describe('Tooltip', () => {
           <button type="button">anchor</button>
         </Tooltip>,
       )
-      fireEvent.mouseEnter(screen.getByText('anchor'))
+      hover(screen.getByText('anchor'))
       const bubble = screen.getByRole('tooltip')
       expect(bubble.getAttribute('data-side')).toBe('bottom')
       expect(bubble.style.top).toBe('48px')
@@ -250,7 +380,7 @@ describe('Tooltip', () => {
           <button type="button">anchor</button>
         </Tooltip>,
       )
-      fireEvent.mouseEnter(screen.getByText('anchor'))
+      hover(screen.getByText('anchor'))
       expect(screen.getByRole('tooltip').getAttribute('data-side')).toBe('bottom')
     } finally {
       spy.mockRestore()
@@ -258,21 +388,27 @@ describe('Tooltip', () => {
   })
 
   it('chains the anchor\'s own handlers ahead of the tooltip\'s', () => {
+    const onPointerDown = vi.fn()
     const onMouseEnter = vi.fn()
+    const onMouseMove = vi.fn()
     const onMouseLeave = vi.fn()
     const onFocus = vi.fn()
     const onBlur = vi.fn()
     render(
       <Tooltip label="Chained">
-        <button type="button" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} onFocus={onFocus} onBlur={onBlur}>anchor</button>
+        <button type="button" onPointerDown={onPointerDown} onMouseEnter={onMouseEnter} onMouseMove={onMouseMove} onMouseLeave={onMouseLeave} onFocus={onFocus} onBlur={onBlur}>anchor</button>
       </Tooltip>,
     )
     const anchor = screen.getByText('anchor')
+    fireEvent.pointerDown(anchor)
     fireEvent.mouseEnter(anchor)
+    fireEvent.mouseMove(anchor)
     fireEvent.mouseLeave(anchor)
     fireEvent.focus(anchor)
     fireEvent.blur(anchor)
+    expect(onPointerDown).toHaveBeenCalledOnce()
     expect(onMouseEnter).toHaveBeenCalledOnce()
+    expect(onMouseMove).toHaveBeenCalledOnce()
     expect(onMouseLeave).toHaveBeenCalledOnce()
     expect(onFocus).toHaveBeenCalledOnce()
     expect(onBlur).toHaveBeenCalledOnce()
@@ -285,7 +421,7 @@ describe('Tooltip', () => {
       </Tooltip>,
     )
     const anchor = screen.getByText('anchor')
-    fireEvent.mouseEnter(anchor)
+    hover(anchor)
     expect(screen.queryByRole('tooltip')).toBeNull()
     rerender(
       <Tooltip label="Rail">
@@ -294,7 +430,7 @@ describe('Tooltip', () => {
     )
     // Same DOM node: toggling disabled never remounted the anchor.
     expect(screen.getByText('anchor')).toBe(anchor)
-    fireEvent.mouseEnter(anchor)
+    hover(anchor)
     expect(screen.getByRole('tooltip')).toBeTruthy()
   })
 
@@ -307,11 +443,11 @@ describe('Tooltip', () => {
     const anchor = screen.getByText('anchor')
     // Focused AND hovered: leaving with the mouse drops the bubble at once.
     fireEvent.focus(anchor)
-    fireEvent.mouseEnter(anchor)
+    hover(anchor)
     fireEvent.mouseLeave(anchor)
     expect(screen.queryByRole('tooltip')).toBeNull()
     // Re-entering shows it again; blurring while still hovered keeps it.
-    fireEvent.mouseEnter(anchor)
+    hover(anchor)
     fireEvent.blur(anchor)
     expect(screen.getByRole('tooltip')).toBeTruthy()
     fireEvent.mouseLeave(anchor)
@@ -328,7 +464,7 @@ describe('Tooltip', () => {
     )
     expect(objectRef.current).toBe(screen.getByText('anchor'))
     // Tooltip's own positioning still works through the merged ref.
-    fireEvent.mouseEnter(screen.getByText('anchor'))
+    hover(screen.getByText('anchor'))
     expect(screen.getByRole('tooltip')).toBeTruthy()
     rerender(
       <Tooltip label="Add">
@@ -344,7 +480,7 @@ describe('Tooltip', () => {
         <button type="button">anchor</button>
       </Tooltip>,
     )
-    fireEvent.mouseEnter(screen.getByText('anchor'))
+    hover(screen.getByText('anchor'))
     expect(screen.getByRole('tooltip')).toBeTruthy()
     // e.g. clicking a rail control expands the sidebar: no mouseleave fires.
     rerender(

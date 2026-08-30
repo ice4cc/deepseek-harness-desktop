@@ -208,7 +208,9 @@ describe('StatsLine', () => {
     const { source } = makeSource({ nodes: [assistant(1, 1)] })
     const view = render(<StatsLine {...props(source, { tokenUsage: tokenUsage(9_995, 5) })} />)
     expect(view.container.textContent).toContain('Cache hit 99.95%')
+    // Hover arms on the entering pointer move (Tooltip trigger model).
     fireEvent.mouseEnter(view.container.firstElementChild!)
+    fireEvent.mouseMove(view.container.firstElementChild!)
     act(() => { vi.advanceTimersByTime(499) })
     expect(view.container.querySelector('[role="tooltip"]')).toBeNull()
     act(() => { vi.advanceTimersByTime(1) })
@@ -221,6 +223,7 @@ describe('StatsLine', () => {
     const { source } = makeSource({ nodes: [assistant(1, 1)] })
     const view = render(<StatsLine {...props(source)} />)
     fireEvent.mouseEnter(view.container.firstElementChild!)
+    fireEvent.mouseMove(view.container.firstElementChild!)
     act(() => { vi.advanceTimersByTime(500) })
     expect(view.container.querySelector('[role="tooltip"]')).toBeNull()
   })

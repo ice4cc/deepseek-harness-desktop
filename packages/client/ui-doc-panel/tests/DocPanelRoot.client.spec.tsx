@@ -1,12 +1,15 @@
 // @vitest-environment jsdom
 /**
  * DocPanelRoot behavior over a driven fixture runtime: the collapsed reopen
- * button (portaled into the frame's overlay layer), the expanded column,
- * load-on-open (one read per tab, deduped), and the auto-follow effect
- * (baseline on session switch, follow only strictly newer touches, gated by
- * the autoFollow flag). The real store engine backs the useStore seat; the
- * sessions fixture is a plain mutable object re-read on rerender; the frame's
- * owner share (collapsed) is driven per render.
+ * button (one persistent node portaled into the frame's overlay layer, hidden
+ * while expanded and until the closing track settles at zero), the
+ * always-mounted column body (inert while collapsed so close never unmounts
+ * mid-animation), load-on-open (one read per tab, deduped), and the
+ * auto-follow effect (baseline on session switch, follow only strictly newer
+ * touches, gated by the autoFollow flag). The real store
+ * engine backs the useStore seat; the sessions fixture is a plain mutable
+ * object re-read on rerender; the frame's owner share (collapsed) is driven
+ * per render.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
@@ -82,11 +85,41 @@ describe('DocPanelRoot', () => {
     expect(m.openPanel).toHaveBeenCalledTimes(1)
   })
 
-  it('renders nothing when collapsed and no overlay layer exists yet', () => {
+  it('keeps the column body mounted while collapsed, inert and button-less without an overlay layer', () => {
     const m = mount({ current: 's1', byId: {} })
     m.overlayLayer.remove()
     act(() => { m.rerender() })
-    expect(m.view.container.innerHTML).toBe('')
+    // No portal target: no reopen button anywhere in the document…
+    expect(screen.queryByRole('button', { name: 'Open document panel' })).toBeNull()
+    // …but the body stays mounted (the track clips it at zero width) and is
+    // inert for the collapsed lifetime; aria-hidden keeps it out of the
+    // accessibility tree (Chromium would otherwise expose an inert subtree as
+    // disabled).
+    const section = m.view.container.querySelector('section')
+    expect(section).not.toBeNull()
+    expect(section?.getAttribute('inert')).toBe('')
+    expect(section?.getAttribute('aria-hidden')).toBe('true')
+  })
+
+  it('keeps one corner-toggle node across toggles, flipping its label and action, and releases the body from inert on expand', () => {
+    const m = mount({ current: 's1', byId: {} })
+    const btn = screen.getByRole('button', { name: 'Open document panel' })
+    expect(m.overlayLayer.contains(btn)).toBe(true)
+    act(() => { m.owner.collapsed = false; m.rerender() })
+    // Expanded: the same node flips its label and action instead of
+    // unmounting, and the body is interactive and visible to assistive tech
+    // again.
+    const expandedBtn = screen.getByRole('button', { name: 'Collapse document panel' })
+    expect(expandedBtn).toBe(btn)
+    fireEvent.click(expandedBtn)
+    expect(m.closePanel).toHaveBeenCalledTimes(1)
+    const section = m.view.container.querySelector('section')
+    expect(section?.hasAttribute('inert')).toBe(false)
+    expect(section?.hasAttribute('aria-hidden')).toBe(false)
+    act(() => { m.owner.collapsed = true; m.rerender() })
+    // …and the very same node flips back.
+    const collapsedBtn = screen.getByRole('button', { name: 'Open document panel' })
+    expect(collapsedBtn).toBe(btn)
   })
 
   it('shows the changes empty state when expanded with no projection', () => {

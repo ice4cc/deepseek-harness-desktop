@@ -224,7 +224,7 @@ export function AppFrame({
             the shell's own pending rendering. The conversation
             is session-maybe; SessionProvider withholds the strict details
             entry while no session is current. */}
-        <CenterColumn>{renderSlot('conversation', {})}</CenterColumn>
+        <CenterColumn>{renderSlot('conversation', { docCollapsed: cols.docPanel === 0 })}</CenterColumn>
         {/* The doc panel receives its live column state from the concession
             solve; while collapsed it renders its reopen affordance instead of
             the column body. */}

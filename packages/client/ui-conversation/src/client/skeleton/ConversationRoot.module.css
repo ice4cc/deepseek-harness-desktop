@@ -216,6 +216,13 @@
   margin-left: 20px;
 }
 
+/* The frame's collapsed doc panel leaves its portaled reopen button in the
+   top-right corner (right edge minus 12 px, 28 px wide); this clearance keeps
+   the right-edge utilities clear of that zone with an 8 px gap. */
+.headerUtilitiesCleared {
+  margin-right: 20px;
+}
+
 .headerUtilities:empty {
   display: none;
 }

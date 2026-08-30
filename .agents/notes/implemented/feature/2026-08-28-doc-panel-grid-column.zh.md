@@ -10,7 +10,7 @@ Web GUI 此前没有任何界面能在会话旁边阅读工作区文件：用户
 
 ## Decision
 
-静态客户端包 `@deepseek-ai/dsh-client-ui-doc-panel` 通过声明感知的 `ctx.slots.inject()` 注册 AppFrame 的 `docPanel` single slot——位于会话列与详情列之间的分栏。分栏几何归 ui-layout 所有，而非面板：布局 store 持有开合状态与宽度（320–720px，默认 480），拖拽调宽走分栏边界上的浮动胶囊手柄，让步链先让详情栏（瞬时）再让文档面板（用户持续意图），视口变窄时各自自动关闭到零宽度、变宽后从存储偏好恢复。面板经跨插件的 `ctx.layout` 面（`openDocPanel`／`closeDocPanel`）触发开合。收起时分栏宽度为零，面板把重开图标按钮 portal 进框架的 overlay 层；展开后填满分栏，含头部（标题、自动跟随开关、收起控件）、页签栏与当前视图。两个切换按钮均与侧边栏同款：无边框圆形图标按钮（镜像版 `IconPanelRightOutline16`）；其 tooltip 一律向下放置（`side="bottom"`），因为在视口右边缘，默认的右侧气泡会被挤回盖住锚点、吞掉点击的 mouseup——mousedown 聚焦会立即显示气泡。
+静态客户端包 `@deepseek-ai/dsh-client-ui-doc-panel` 通过声明感知的 `ctx.slots.inject()` 注册 AppFrame 的 `docPanel` single slot——位于会话列与详情列之间的分栏。分栏几何归 ui-layout 所有，而非面板：布局 store 持有开合状态与宽度（320–720px，默认 480），拖拽调宽走分栏边界上的浮动胶囊手柄，让步链先让详情栏（瞬时）再让文档面板（用户持续意图），视口变窄时各自自动关闭到零宽度、变宽后从存储偏好恢复。面板经跨插件的 `ctx.layout` 面（`openDocPanel`／`closeDocPanel`）触发开合。分栏 body 在两种状态下都保持挂载：收起时轨道动画到零宽度并将其裁剪（body 在收起期间为 `inert`），portal 进框架 overlay 层的持久重开图标按钮隐藏；展开后 body 填满分栏，含头部（标题、自动跟随开关、收起控件）、页签栏与当前视图。两个切换按钮均与侧边栏同款：无边框圆形图标按钮（镜像版 `IconPanelRightOutline16`），tooltip 一律向下放置（`side="bottom"`）以避开视口右边缘；让点击不闪出气泡、静止光标之下不弹出气泡的触发时序，由 [Tooltip 气泡不得在开关按钮点击时闪烁](../bug-fix/2026-08-30-tooltip-click-flash.zh.md) 所有；重开按钮取消隐藏的时机（等轨道落定，两个开关永不同时绘制）由 [文档面板开关在列过渡期间不得重复绘制](../bug-fix/2026-08-30-doc-panel-toggle-double-button.zh.md) 所有。
 
 页签按路径寻址内容：每个文件一个全局缓存条目，每个会话一套有序页签集合加激活选择（超过十个会话按最近使用逐出）。形态由扩展名派生——Markdown（渲染／源码切换）、HTML（无脚本沙箱 iframe）、代码（CodeMirror 6 带守卫编辑——[文档面板代码编辑器](2026-08-29-doc-panel-codemirror-editor.zh.md)）。
 

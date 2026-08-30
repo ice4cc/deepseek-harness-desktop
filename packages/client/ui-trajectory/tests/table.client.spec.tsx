@@ -894,9 +894,12 @@ describe('TrajectoryTable', () => {
     expect(toolTag?.getAttribute('title')).toBeNull()
     expect(toolIcon).toBeTruthy()
 
+    // Hover arms on the entering pointer move (Tooltip trigger model).
     fireEvent.mouseEnter(toolTag as HTMLElement)
+    fireEvent.mouseMove(toolTag as HTMLElement)
     expect(screen.queryByRole('tooltip')).toBeNull()
     fireEvent.mouseEnter(toolIcon as HTMLElement)
+    fireEvent.mouseMove(toolIcon as HTMLElement)
     const tooltip = screen.getByRole('tooltip')
     expect(tooltip.textContent).toBe('TOOL')
     expect(tooltip.getAttribute('data-side')).toBe('right')

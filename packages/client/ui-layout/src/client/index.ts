@@ -59,8 +59,10 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      *
      * Current-session-optional: the occupant owns both states without
      * changing its React identity, so it keeps its own state across a session
-     * switch. It receives no owner props; session facts arrive through the
-     * framework hooks of the `session-maybe` scope.
+     * switch. Session facts arrive through the framework hooks of the
+     * `session-maybe` scope; the frame's doc-panel collapsed state arrives as
+     * an owner prop (the column's portaled reopen button then owns the
+     * frame's top-right corner and right-edge chrome must clear it).
      */
     'conversation': { kind: 'single'; scope: 'session-maybe'; owner: ConvOwnerProps }
     /**
@@ -112,8 +114,11 @@ export interface SidebarOwnerProps {
   width: number
 }
 
-/** Conversation owner share: business state and actions belong to the registrant. */
-export interface ConvOwnerProps {}
+/** Conversation owner share: frame facts the occupant needs for clearance. */
+export interface ConvOwnerProps {
+  /** True when the doc panel column is closed (its portaled reopen button owns the frame's top-right corner). */
+  docCollapsed: boolean
+}
 
 /** Doc panel owner share: live column state from the frame's concession solve. */
 export interface DocPanelOwnerProps {

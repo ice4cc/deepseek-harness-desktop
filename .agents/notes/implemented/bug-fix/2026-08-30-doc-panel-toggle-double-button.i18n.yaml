@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-30-doc-panel-toggle-double-button.md
+2026-08-30-doc-panel-toggle-double-button.md: 2f15684915bafad3942dea0dcc3556a881425ed0
+2026-08-30-doc-panel-toggle-double-button.zh.md: f0b525ac0c2e1fedcad716b12efdce61470f51a3

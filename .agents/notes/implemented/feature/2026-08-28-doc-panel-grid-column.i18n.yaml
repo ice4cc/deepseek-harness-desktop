@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-28-doc-panel-grid-column.md
-2026-08-28-doc-panel-grid-column.md: cef8fa9605f3ff0cf08f477541817d25fd1de5cd
-2026-08-28-doc-panel-grid-column.zh.md: 640f0db784b10a5427fe8e206093b6fae2c8c973
+2026-08-28-doc-panel-grid-column.md: e20611d857a0bf162e4a8165e7effeee16c912d4
+2026-08-28-doc-panel-grid-column.zh.md: 9eafd428ec4809356f86905132ccbbb7bf0e5db3
