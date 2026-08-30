@@ -7,9 +7,11 @@
  * content (logged, replayed, shipped) that the chat template strips at
  * render time; no host-side state and no submission-pipeline hook.
  */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context } from '@deepseek-ai/cordis'
 // Type-only: pulls the ui-conversation SlotMap merge (the input.right seat).
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+// Type-only: pulls the renderer's Context merge (ctx.slots).
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { ThinkTagControl } from './ThinkTagControl.tsx'
@@ -34,7 +36,7 @@ export const inject = ['locale', 'slots']
  * Client plugin body: register the think-tag control over the composer seat.
  * @param ctx - client root context.
  */
-export function apply(ctx: ClientContext): void {
+export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-think-tag: dictionaries')
 
   ctx.slots.inject('conversation.input.right', () => ctx.slots.register({

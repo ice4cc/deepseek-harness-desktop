@@ -14,7 +14,7 @@ Web composer 没有任何面向用户的逐条消息 reasoning 强度控制。pr
 
 level 以追加到 draft 的 inline `<|think_off|>` / `<|think_low|>` / `<|think_medium|>` / `<|think_xhigh|>` 标签形式落地。model 可见内容即被记录的 draft 内容，所以标签沿既有的 model 可见通道走完全程：输入 machine、session 日志与 wire 载荷都携带它，无需任何 submission-pipeline hook；replay 逐字重放带标签的 draft。froggeric chat template 在渲染时把标签从 prompt 中剥离，并根据它推导该条消息的 reasoning 强度。「会话默认」移除标签，把决定权交回 provider/会话的 `reasoning_effort`。
 
-只扫描尾部 span：出现在 draft 中部的标签对模型是字面文本，绝不被改写。标签是 per-draft 值——控件除自身下拉的开合外不持有任何状态；无当前会话时（owner zone 缺席）不渲染任何内容。会话级 effort 词汇表（`ReasoningEffortId`）、请求头的日志记录与兜底选择仍归 [adapter 主导的 reasoning effort 能力](../architecture/2026-07-24-adapter-owned-reasoning-effort-capabilities.md) 所有；标签是按条消息补充该机制，而不是取代它。
+只扫描尾部 span：出现在 draft 中部的标签对模型是字面文本，绝不被改写。标签是 per-draft 值——控件除自身下拉的开合外不持有任何状态；无当前会话时（owner zone 缺席）不渲染任何内容。会话级 effort 词汇表（`ReasoningEffortId`）、请求头的日志记录与兜底选择仍归 [adapter 主导的 reasoning effort 能力](../architecture/2026-07-24-adapter-owned-reasoning-effort-capabilities.zh.md) 所有；标签是按条消息补充该机制，而不是取代它。
 
 ## 备选方案
 

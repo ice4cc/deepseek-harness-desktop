@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { CallId, createToolResultMessage } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, createToolResultMessage } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import type { JsonValue, Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
@@ -27,7 +27,7 @@ async function harness(withPlugin: boolean): Promise<{ ctx: Context; session: Se
 
 /** Append one tool/call with raw JSON arguments; returns the appended event. */
 function appendCall(session: Session, callId: string, name: string, args: unknown): SessionEvent {
-  return session.append('tool/call', { turn: 1, step: 1, callId: CallId(callId), name, arguments: JSON.stringify(args) })
+  return session.append('tool/call', { turn: 1, step: 1, callId: ToolCallId(callId), name, arguments: JSON.stringify(args) })
 }
 
 /** Append the paired tool/result with an optional error flag and meta; returns the appended event. */
@@ -35,7 +35,7 @@ function appendResult(session: Session, callId: string, isError = false, meta?: 
   return session.append('tool/result', {
     turn: 1, step: 1,
     message: createToolResultMessage({
-      callId: CallId(callId),
+      callId: ToolCallId(callId),
       content: [{ type: 'text', text: isError ? 'Error: failed' : 'ok' }],
       isError,
     }),
@@ -95,7 +95,7 @@ describe('fileChanges projection unit (registry drive)', () => {
     appendResult(session, 'e-err', true)
     appendCall(session, 'bash-1', 'bash', { command: 'echo hi' })
     appendResult(session, 'bash-1')
-    session.append('tool/call', { turn: 1, step: 1, callId: CallId('bad-json'), name: 'edit', arguments: '{not json' })
+    session.append('tool/call', { turn: 1, step: 1, callId: ToolCallId('bad-json'), name: 'edit', arguments: '{not json' })
     appendCall(session, 'no-path', 'write', { content: 'x' })
     appendResult(session, 'ghost')
     expect(ctx.sessionProjections.snapshot(session).values.fileChanges).toEqual({ files: [] })
@@ -193,7 +193,7 @@ describe('fileChanges projection unit (registry drive)', () => {
 
 /** One raw tool/call event for direct definition driving. */
 function callEvent(callId: string, name: string, args: unknown, time = 1000): SessionEvent {
-  return { type: 'tool/call', seq: 1, time, data: { turn: 1, step: 1, callId: CallId(callId), name, arguments: JSON.stringify(args) } }
+  return { type: 'tool/call', seq: 1, time, data: { turn: 1, step: 1, callId: ToolCallId(callId), name, arguments: JSON.stringify(args) } }
 }
 
 /** One raw tool/result event for direct definition driving. */
@@ -202,7 +202,7 @@ function resultEvent(callId: string, meta?: unknown, isError = false, time = 200
     type: 'tool/result', seq: 2, time,
     data: {
       turn: 1, step: 1,
-      message: createToolResultMessage({ callId: CallId(callId), content: [{ type: 'text', text: 'ok' }], isError }),
+      message: createToolResultMessage({ callId: ToolCallId(callId), content: [{ type: 'text', text: 'ok' }], isError }),
       ...(meta !== undefined ? { meta } : {}),
     },
   } as SessionEvent
@@ -215,7 +215,7 @@ describe('fileChanges fold math (direct definition drive)', () => {
     state = fileChangesProjectionDefinition.apply(state, resultEvent('m1', {
       diffs: [{ path: '/w/m.ts', oldText: 'x\nx\ny', newText: 'x\nz' }],
     }))
-    const entry = fileChangesProjectionDefinition.view(state).files[0]!
+    const entry = fileChangesProjectionDefinition.wire.view(state).files[0]!
     // Old multiset {x:2, y:1} vs new {x:1, z:1}: one x cancels, so added=1 (z), removed=2 (x, y).
     expect(entry).toMatchObject({ added: 1, removed: 2 })
   })
@@ -226,7 +226,7 @@ describe('fileChanges fold math (direct definition drive)', () => {
     state = fileChangesProjectionDefinition.apply(state, resultEvent('m2', {
       diffs: [{ path: '/w/t.ts', oldText: 'a\n', newText: 'a' }],
     }))
-    expect(fileChangesProjectionDefinition.view(state).files[0]).toMatchObject({ added: 0, removed: 0 })
+    expect(fileChangesProjectionDefinition.wire.view(state).files[0]).toMatchObject({ added: 0, removed: 0 })
   })
 
   it('records the event time as lastAt and keeps the same reference for foreign events', () => {
@@ -235,7 +235,7 @@ describe('fileChanges fold math (direct definition drive)', () => {
     expect(fileChangesProjectionDefinition.apply(state, foreign)).toBe(state)
     state = fileChangesProjectionDefinition.apply(state, callEvent('m4', 'edit', { file_path: '/w/t.ts', old_string: 'a', new_string: 'b' }))
     state = fileChangesProjectionDefinition.apply(state, resultEvent('m4', { diffs: [{ path: '/w/t.ts', oldText: null, newText: 'x' }] }, false, 4242))
-    expect(fileChangesProjectionDefinition.view(state).files[0]?.lastAt).toBe(4242)
+    expect(fileChangesProjectionDefinition.wire.view(state).files[0]?.lastAt).toBe(4242)
   })
 
   it('reads a prototype property name on an unpaired result as unmatched', () => {
@@ -248,14 +248,14 @@ describe('fileChanges fold math (direct definition drive)', () => {
     let state = fileChangesProjectionDefinition.init()
     state = fileChangesProjectionDefinition.apply(state, callEvent('m5', 'edit', { file_path: '/w/e.ts', old_string: 'a', new_string: 'b' }))
     state = fileChangesProjectionDefinition.apply(state, resultEvent('m5'))
-    expect(fileChangesProjectionDefinition.view(state).files[0]).toMatchObject({ edits: 1, added: 0, removed: 0, lastDiff: null })
+    expect(fileChangesProjectionDefinition.wire.view(state).files[0]).toMatchObject({ edits: 1, added: 0, removed: 0, lastDiff: null })
   })
 
   it('counts an emptied file as all lines removed', () => {
     let state = fileChangesProjectionDefinition.init()
     state = fileChangesProjectionDefinition.apply(state, callEvent('m6', 'write', { file_path: '/w/empty.ts', content: 'a\n' }))
     state = fileChangesProjectionDefinition.apply(state, resultEvent('m6', { diffs: [{ path: '/w/empty.ts', oldText: 'a\n', newText: '' }] }))
-    expect(fileChangesProjectionDefinition.view(state).files[0]).toMatchObject({ added: 0, removed: 1 })
+    expect(fileChangesProjectionDefinition.wire.view(state).files[0]).toMatchObject({ added: 0, removed: 1 })
   })
 
   it('falls back when meta carries an empty or malformed diff list', () => {
@@ -263,17 +263,17 @@ describe('fileChanges fold math (direct definition drive)', () => {
     let state = fileChangesProjectionDefinition.init()
     state = fileChangesProjectionDefinition.apply(state, callEvent('m7', 'write', { file_path: '/w/w.ts', content: 'x\n' }))
     state = fileChangesProjectionDefinition.apply(state, resultEvent('m7', { diffs: [] }))
-    expect(fileChangesProjectionDefinition.view(state).files[0]?.lastDiff).toEqual([{ path: '/w/w.ts', oldText: null, newText: 'x\n' }])
+    expect(fileChangesProjectionDefinition.wire.view(state).files[0]?.lastDiff).toEqual([{ path: '/w/w.ts', oldText: null, newText: 'x\n' }])
     // Malformed entry: same fallback.
     state = fileChangesProjectionDefinition.init()
     state = fileChangesProjectionDefinition.apply(state, callEvent('m8', 'write', { file_path: '/w/w2.ts', content: 'y\n' }))
     state = fileChangesProjectionDefinition.apply(state, resultEvent('m8', { diffs: [{ path: '/w/w2.ts', oldText: null, newText: 'y\n' }, 'junk'] }))
-    expect(fileChangesProjectionDefinition.view(state).files[0]?.lastDiff).toEqual([{ path: '/w/w2.ts', oldText: null, newText: 'y\n' }])
+    expect(fileChangesProjectionDefinition.wire.view(state).files[0]?.lastDiff).toEqual([{ path: '/w/w2.ts', oldText: null, newText: 'y\n' }])
   })
 
   it('parks nothing for arguments that parse to a non-object', () => {
     const state = fileChangesProjectionDefinition.init()
-    const next = fileChangesProjectionDefinition.apply(state, { type: 'tool/call', seq: 1, time: 1000, data: { turn: 1, step: 1, callId: CallId('m9'), name: 'write', arguments: '42' } })
+    const next = fileChangesProjectionDefinition.apply(state, { type: 'tool/call', seq: 1, time: 1000, data: { turn: 1, step: 1, callId: ToolCallId('m9'), name: 'write', arguments: '42' } })
     expect(next).toBe(state)
   })
 
@@ -281,7 +281,7 @@ describe('fileChanges fold math (direct definition drive)', () => {
     let state = fileChangesProjectionDefinition.init()
     state = fileChangesProjectionDefinition.apply(state, callEvent('s1', 'write', { file_path: '/w/s.md', content: 'a\n' }))
     state = fileChangesProjectionDefinition.apply(state, resultEvent('s1'))
-    const value = fileChangesProjectionDefinition.view(state)
-    expect(fileChangesProjectionDefinition.schema.parse(value)).toEqual(value)
+    const value = fileChangesProjectionDefinition.wire.view(state)
+    expect(fileChangesProjectionDefinition.wire.viewSchema.parse(value)).toEqual(value)
   })
 })

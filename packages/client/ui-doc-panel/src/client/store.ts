@@ -6,7 +6,7 @@
  * is active where. File bytes never live here longer than a load: the
  * workspaces service owns the read.
  */
-import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-runtime/client'
+import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-store'
 
 /** The pinned (non-file) tab id. */
 export const CHANGES_TAB_ID = 'changes'

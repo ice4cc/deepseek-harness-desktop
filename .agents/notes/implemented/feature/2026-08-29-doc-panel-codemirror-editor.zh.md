@@ -6,20 +6,20 @@ Status: implemented
 
 ## 问题
 
-文档面板的代码视图用一个手写的行级 tokenizer（`packages/client/ui-doc-panel/src/client/render/highlight.ts`）渲染文件，把源码分成五类 token run（comment / string / keyword / number / plain）。和聊天侧的观感相比很简陋：函数调用、属性、标点全部用默认色渲染；没有行号、代码折叠、文件内搜索和当前行高亮。高亮还是整文件同步进行的，多 MB 的文件（lockfile）会卡住帧。
+文档面板的代码视图曾用一个手写的行级 tokenizer 渲染文件，把源码分成五类 token run（comment / string / keyword / number / plain）——本变更将其退役。和聊天侧的观感相比很简陋：函数调用、属性、标点全部用默认色渲染；没有行号、代码折叠、文件内搜索和当前行高亮。高亮还是整文件同步进行的，多 MB 的文件（lockfile）会卡住帧。
 
 产品目标是让文档面板达到 IDE 级的文件浏览体验——VS Code 里"打开一个文件来看"的那一半——并支持就地编辑，在 agent 操作同一棵树的期间安全地处理冲突。
 
 ## 决策
 
-文档面板（[布局与页签模型](2026-08-28-doc-panel-grid-column.md)）的代码渲染面是 CodeMirror 6，分三个阶段落地；本 note 取代 grid column note 里自有的代码分词器。聊天侧保持现有基于 Shiki 的 `CodeBlock` 不动；两个面的配色一致性靠主题 token 保证，不靠共享组件。
+文档面板（[布局与页签模型](2026-08-28-doc-panel-grid-column.zh.md)）的代码渲染面是 CodeMirror 6，分三个阶段落地；本 note 取代 grid column note 里自有的代码分词器。聊天侧保持现有基于 Shiki 的 `CodeBlock` 不动；两个面的配色一致性靠主题 token 保证，不靠共享组件。
 
 ### Phase A — host 写通道
 
-- 给 `TextFileContent`（`packages/host/apiproxy/src/api/host.ts`）加 `version` 新鲜度令牌；读路径本来就要 stat 取 size，令牌顺路带出。pre-release 阶段的 wire 扩展：不做兼容层。
-- 新增 `host.writeTextFile` RPC（`{ path, content, expectedVersion? }`），在 `api-proxy.ts` 里挨着 `readTextFile` 实现。它直接写 node:fs（与读路径对称）：stat 提供新鲜度基线并证明目标是常规文件；传入的 `expectedVersion` 不再匹配时报 `file-stale-version`，目标缺失或非规规则报 `file-unwritable`；省略守卫即无条件覆盖（冲突横幅的"仍要覆盖"路径）。版本令牌（`dev:ino:size:mtimeMs:ctimeMs`）对 client 不透明——是一个回显守卫，不是带品牌的值。
-- apiproxy 新增 `Config` 字段，限制单次写载荷的字节数，与读侧 `file-too-large` 上限对称。
-- schema（`host.schema.ts`）、fetch client + handler 各加一行，client 侧在 `readTextFile` 旁加 `workspaces.writeTextFile()`（`packages/client/runtime/src/client/workspaces/service.ts`）。
+- 给 workspace-controller 的文本文件读值（`TextFileReadValue`，`packages/api/workspace-controller/src/types.ts`）加 `version` 新鲜度令牌；读路径本来就要 stat 取 size，令牌顺路带出。pre-release 阶段的 wire 扩展：不做兼容层。
+- 新增 `ctx.remote.workspace.writeTextFile` 方法（`{ path, content, expectedVersion? }`），在 `packages/api/workspace-controller/src/commands.ts` 里挨着 `readTextFile` 实现。它直接写 node:fs（与读路径对称）：stat 提供新鲜度基线并证明目标是常规文件；传入的 `expectedVersion` 不再匹配时报 `file-stale-version`，目标缺失或非规规则报 `file-unwritable`；省略守卫即无条件覆盖（冲突横幅的"仍要覆盖"路径）。版本令牌（`dev:ino:size:mtimeMs:ctimeMs`）对 client 不透明——是一个回显守卫，不是带品牌的值。
+- workspace-controller 新增 `Config` 字段限制单次写载荷字节数（`maxWriteBytes`），与读侧 `file-too-large` 上限（`maxTextBytes`）对称。
+- controller 的 `@Remote('readTextFile')`／`@Remote('writeTextFile')` 方法（`packages/api/workspace-controller/src/index.ts`），以及 client 侧在 `readTextFile` 旁加的 `workspaces.writeTextFile()`（`packages/api/workspace-controller/src/client/service.ts`）。
 
 ### Phase B — CodeMirror 6 只读视图
 
@@ -48,13 +48,13 @@ Status: implemented
 - 冲突检测复用 fs 能力的版本守卫语义（对 stat 派生令牌做 compare-and-swap），不发明新协议；host 用 kebab-case RPC 码（`file-stale-version`、`file-unwritable`）匹配读路径的域，而不是字面的 `FS_STALE_VERSION` 符号。
 - 一套色板：CodeMirror 颜色引用 `--shiki-*` 变量，聊天与面板一致；不建第二张色表。
 - 文档文本不逐击键进 store。
-- 写大小上限做成 apiproxy `Config` 字段（与读侧对称）。
+- 写大小上限做成 workspace-controller `Config` 字段（与读侧对称）。
 - 冲突覆盖是直接写，不走 RiskConfirmation。
 
 ## 实施接缝
 
-- Host：`packages/host/apiproxy/src/api/host.ts`（`TextFileContent`、`HostApi`）、`api/host.schema.ts`、`fetch/client.ts`、`fetch/handler.ts`、`api-proxy.ts`（实现挨着现有 `readTextFile` handler，Config 字段挨着读大小上限）、`index.ts`（config 面）。
-- Runtime：`packages/client/runtime/src/client/workspaces/service.ts`（及其 contract 面）加 `writeTextFile`。
+- Host：`packages/api/workspace-controller/src/types.ts`（`TextFileReadValue`、`TextFileWriteRequest`、`TextFileWriteValue`）、`src/commands.ts`（实现挨着现有 `readTextFile`，大小上限挨着读上限）、`src/index.ts`（`@Remote` 方法与 `Config` 面）。
+- Client：`packages/api/workspace-controller/src/client/service.ts`（及其 contract 面）加 `writeTextFile`。
 - 面板：`packages/client/ui-doc-panel/src/client/store.ts`（tab 字段 + actions）、`src/client/` 下新的 CodeEditor 组件、`views.tsx`（code tab 挂载）、`DocPanelRoot.module.css`（删 `.tok*`）、`render/highlight.ts`（删除）、`index.ts`（save inject prop）、`locales.ts`（横幅/文案）。
 
 ## 考虑过的替代方案

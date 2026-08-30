@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/client/ui-think-tag/README.md
-README.md: 5def2582f38c0032c28684fa22b5e9f4b054591f
-README.zh.md: ac77be6562402520136241965b2696ad49084be3
+README.md: cda967c1eaa32113e062a7c7641291c7a72770ac
+README.zh.md: 454875ffceea724c10b8aac66607668e337ec803

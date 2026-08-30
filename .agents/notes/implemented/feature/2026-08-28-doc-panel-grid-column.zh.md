@@ -12,9 +12,9 @@ Web GUI 此前没有任何界面能在会话旁边阅读工作区文件：用户
 
 静态客户端包 `@deepseek-ai/dsh-client-ui-doc-panel` 通过声明感知的 `ctx.slots.inject()` 注册 AppFrame 的 `docPanel` single slot——位于会话列与详情列之间的分栏。分栏几何归 ui-layout 所有，而非面板：布局 store 持有开合状态与宽度（320–720px，默认 480），拖拽调宽走分栏边界上的浮动胶囊手柄，让步链先让详情栏（瞬时）再让文档面板（用户持续意图），视口变窄时各自自动关闭到零宽度、变宽后从存储偏好恢复。面板经跨插件的 `ctx.layout` 面（`openDocPanel`／`closeDocPanel`）触发开合。收起时分栏宽度为零，面板把重开图标按钮 portal 进框架的 overlay 层；展开后填满分栏，含头部（标题、自动跟随开关、收起控件）、页签栏与当前视图。两个切换按钮均与侧边栏同款：无边框圆形图标按钮（镜像版 `IconPanelRightOutline16`）；其 tooltip 一律向下放置（`side="bottom"`），因为在视口右边缘，默认的右侧气泡会被挤回盖住锚点、吞掉点击的 mouseup——mousedown 聚焦会立即显示气泡。
 
-页签按路径寻址内容：每个文件一个全局缓存条目，每个会话一套有序页签集合加激活选择（超过十个会话按最近使用逐出）。形态由扩展名派生——Markdown（渲染／源码切换）、HTML（无脚本沙箱 iframe）、代码（CodeMirror 6 带守卫编辑——[文档面板代码编辑器](2026-08-29-doc-panel-codemirror-editor.md)）。
+页签按路径寻址内容：每个文件一个全局缓存条目，每个会话一套有序页签集合加激活选择（超过十个会话按最近使用逐出）。形态由扩展名派生——Markdown（渲染／源码切换）、HTML（无脚本沙箱 iframe）、代码（CodeMirror 6 带守卫编辑——[文档面板代码编辑器](2026-08-29-doc-panel-codemirror-editor.zh.md)）。
 
-面板带一个固定的「变更」页签，聚合当前会话的 `fileChanges` 投影（[dsh-file-changes](../../../../packages/session/file-changes/README.md)）：每个路径一行，带新增／删除／编辑次数统计，可展开经 ui-primitives DiffBlock 渲染的差异；点击某行即打开该文件。自动跟随（默认开启）对严格更新的改动打开页签并打开面板分栏，切换会话时重建按路径的 `lastAt` 基线表，既有变更不会涌入页签栏。读取走运行时的 `workspaces.readTextFile`，由 API 网关在任意组合的 picker kind 下直接从宿主文件系统提供——刻意不作为目录选择能力的一部分，因为原生桌面同样要能打开自己变更的文件；失败以其 wire 码呈现。
+面板带一个固定的「变更」页签，聚合当前会话的 `fileChanges` 投影（[dsh-file-changes](../../../../packages/session/file-changes/README.zh.md)）：每个路径一行，带新增／删除／编辑次数统计，可展开经 ui-primitives DiffBlock 渲染的差异；点击某行即打开该文件。自动跟随（默认开启）对严格更新的改动打开页签并打开面板分栏，切换会话时重建按路径的 `lastAt` 基线表，既有变更不会涌入页签栏。读取走运行时的 `workspaces.readTextFile`，由 API 网关在任意组合的 picker kind 下直接从宿主文件系统提供——刻意不作为目录选择能力的一部分，因为原生桌面同样要能打开自己变更的文件；失败以其 wire 码呈现。
 
 承重的选择：
 

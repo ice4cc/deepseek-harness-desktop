@@ -6,9 +6,9 @@
 
 import { useState } from 'react'
 import clsx from 'clsx'
-import { DiffBlock } from '@deepseek-ai/dsh-client-ui-primitives'
+import { DiffBlock, type DiffBlockLabels } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { FileChangesProjection } from '@deepseek-ai/dsh-file-changes/client'
-import type { DocPanelKey } from './locales.ts'
 import css from './DocPanelRoot.module.css'
 
 /**
@@ -43,7 +43,20 @@ interface ChangesTabProps {
   /** Open one stored path in a document tab (receives the absolute form). */
   onOpenFile: (path: string) => void
   /** The panel locale seat. */
-  t: (key: DocPanelKey) => string
+  t: TranslateNS<'docPanel'>
+}
+
+/** Diff-card chrome labels for the changes tab's diff blocks. */
+function diffLabels(t: TranslateNS<'docPanel'>): DiffBlockLabels {
+  return {
+    copy: t('copy'),
+    copied: t('copied'),
+    collapseAria: t('diff.collapseAria'),
+    expandAria: count => t('diff.expandAria', { count }),
+    collapse: t('collapse'),
+    expand: count => t('diff.expandRest', { count }),
+    files: count => t(count === 1 ? 'diff.files.one' : 'diff.files.other', { count }),
+  }
 }
 
 /**
@@ -87,7 +100,7 @@ export function ChangesTab({ changes, cwd, onOpenFile, t }: ChangesTabProps) {
             </div>
             {expanded && file.lastDiff !== null && (
               <div className={clsx(css.changeDiff, 'doc-changes-diff')}>
-                <DiffBlock diffs={file.lastDiff} />
+                <DiffBlock diffs={file.lastDiff} labels={diffLabels(t)} />
               </div>
             )}
           </div>

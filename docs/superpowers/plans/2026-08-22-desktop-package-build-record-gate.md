@@ -1,5 +1,7 @@
 # Desktop Packaging Build-Record Gate — Implementation Plan
 
+English | [中文](2026-08-22-desktop-package-build-record-gate.zh.md)
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make `apps/desktop/scripts/package.mjs` refuse to package unless the repository's client build record (`.dsh-build/client-build-environment.json`) exists and its artifact digest matches the on-disk artifacts, so stale `apps/web/dist` or a missing/partial client build fails before packaging instead of producing a broken app.
@@ -37,7 +39,7 @@
 
 Create `apps/desktop/tests/verify-build-record.spec.ts`:
 
-```ts
+```ts ignore-check
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -90,14 +92,13 @@ describe('verify-build-record', () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `cd /Users/dingpc/workspace/deepseek-harness-desktop && ./node_modules/.bin/vitest run apps/desktop/tests/verify-build-record.spec.ts`
-Expected: FAIL — `Cannot find module '../scripts/verify-build-record.mts'` (the entrypoint does not exist yet).
+Run: `cd /Users/dingpc/workspace/deepseek-harness-desktop && ./node_modules/.bin/vitest run apps/desktop/tests/verify-build-record.spec.ts` Expected: FAIL — `Cannot find module '../scripts/verify-build-record.mts'` (the entrypoint does not exist yet).
 
 - [ ] **Step 3: Write the entrypoint**
 
 Create `apps/desktop/scripts/verify-build-record.mts`:
 
-```ts
+```ts ignore-check
 /**
  * Packaging gate: confirm the client build record still describes the on-disk
  * artifacts before the desktop app is packaged.
@@ -105,7 +106,7 @@ Create `apps/desktop/scripts/verify-build-record.mts`:
  * The repository's root build (`pnpm run build` / `pnpm run build:official`,
  * scripts/build.ts) writes .dsh-build/client-build-environment.json binding a
  * digest of every client artifact (apps/web/dist/** and
- * packages/*/*/lib/client.js) to the public client environment. readClientBuildRecord
+ * packages/<group>/<pkg>/lib/client.js) to the public client environment. readClientBuildRecord
  * throws when that record is missing or the artifacts have moved on — exactly the
  * stale-dist and partial-client-build failures a hand-built tree silently ships.
  *
@@ -152,13 +153,11 @@ Note: the entrypoint lives at `apps/desktop/scripts/`, so the repo root is **fou
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `cd /Users/dingpc/workspace/deepseek-harness-desktop && ./node_modules/.bin/vitest run apps/desktop/tests/verify-build-record.spec.ts`
-Expected: PASS (3 tests).
+Run: `cd /Users/dingpc/workspace/deepseek-harness-desktop && ./node_modules/.bin/vitest run apps/desktop/tests/verify-build-record.spec.ts` Expected: PASS (3 tests).
 
 - [ ] **Step 5: Verify the entrypoint runs standalone and the root resolution is correct**
 
-Run: `cd /Users/dingpc/workspace/deepseek-harness-desktop && node --import tsx apps/desktop/scripts/verify-build-record.mts; echo "exit=$?"`
-Expected: if a record exists, prints the verified line and `exit=0`; if not, prints the failure + hint and `exit=1`. Confirm the resolved root is the repo root (the error message should reference `.dsh-build/client-build-environment.json` at the repo, not a nested path). Adjust the number of `..` segments in Step 3 if the path is wrong.
+Run: `cd /Users/dingpc/workspace/deepseek-harness-desktop && node --import tsx apps/desktop/scripts/verify-build-record.mts; echo "exit=$?"` Expected: if a record exists, prints the verified line and `exit=0`; if not, prints the failure + hint and `exit=1`. Confirm the resolved root is the repo root (the error message should reference `.dsh-build/client-build-environment.json` at the repo, not a nested path). Adjust the number of `..` segments in Step 3 if the path is wrong.
 
 - [ ] **Step 6: Commit**
 
@@ -223,20 +222,17 @@ Run: `cd /Users/dingpc/workspace/deepseek-harness-desktop && ls .dsh-build/clien
 
 Then run the packaging script and confirm it stops at the gate, before deploy:
 
-Run: `cd /Users/dingpc/workspace/deepseek-harness-desktop/apps/desktop && node scripts/package.mjs --mac 2>&1 | grep -E "build-record gate|client build record|deploying" ; echo "exit=${PIPESTATUS[0]}"`
-Expected: prints the `build-record gate failed` line (and the child's hint), does NOT print `deploying @deepseek-ai/dsh`, and `exit=1`.
+Run: `cd /Users/dingpc/workspace/deepseek-harness-desktop/apps/desktop && node scripts/package.mjs --mac 2>&1 | grep -E "build-record gate|client build record|deploying" ; echo "exit=${PIPESTATUS[0]}"` Expected: prints the `build-record gate failed` line (and the child's hint), does NOT print `deploying @deepseek-ai/dsh`, and `exit=1`.
 
 - [ ] **Step 4: Verify the gate passes and packaging proceeds when a record exists**
 
 Generate a real record by running the root build (this also re-binds the current artifacts):
 
-Run: `cd /Users/dingpc/workspace/deepseek-harness-desktop && pnpm run build 2>&1 | tail -5`
-Expected: completes and prints the `build: recorded N client artifact(s)` line.
+Run: `cd /Users/dingpc/workspace/deepseek-harness-desktop && pnpm run build 2>&1 | tail -5` Expected: completes and prints the `build: recorded N client artifact(s)` line.
 
 Re-run packaging; it should clear the gate and reach the deploy step:
 
-Run: `cd /Users/dingpc/workspace/deepseek-harness-desktop/apps/desktop && node scripts/package.mjs --mac 2>&1 | grep -E "client build record verified|deploying @deepseek-ai/dsh" | head`
-Expected: prints `client build record verified` then `deploying @deepseek-ai/dsh production installation`. (Let it finish or interrupt after deploy begins — the point is the gate passed.)
+Run: `cd /Users/dingpc/workspace/deepseek-harness-desktop/apps/desktop && node scripts/package.mjs --mac 2>&1 | grep -E "client build record verified|deploying @deepseek-ai/dsh" | head` Expected: prints `client build record verified` then `deploying @deepseek-ai/dsh production installation`. (Let it finish or interrupt after deploy begins — the point is the gate passed.)
 
 - [ ] **Step 5: Commit**
 
@@ -279,8 +275,7 @@ Create `...zh.md` mirroring the English note per the repo's bilingual format.
 
 Run the format gate to confirm the triplet is well-formed:
 
-Run: `cd /Users/dingpc/workspace/deepseek-harness-desktop && pnpm run verify-agent-note-format 2>&1 | tail -15`
-Expected: the new note passes (or the gate prints the exact sidecar name/field it needs — fix and re-run).
+Run: `cd /Users/dingpc/workspace/deepseek-harness-desktop && pnpm run verify-agent-note-format 2>&1 | tail -15` Expected: the new note passes (or the gate prints the exact sidecar name/field it needs — fix and re-run).
 
 - [ ] **Step 4: Update both READMEs' packaging section**
 
@@ -309,13 +304,11 @@ git commit -m "docs(desktop): record the packaging build-record gate decision"
 
 - [ ] **Step 1: Move the triplet to `implemented/` and fix inbound links**
 
-Run: `cd /Users/dingpc/workspace/deepseek-harness-desktop && git mv .agents/notes/proposed/process/2026-08-22-desktop-package-build-record-gate.md .agents/notes/implemented/process/ 2>/dev/null; git mv .agents/notes/proposed/process/2026-08-22-desktop-package-build-record-gate.zh.md .agents/notes/implemented/process/ 2>/dev/null; git mv .agents/notes/proposed/process/2026-08-22-desktop-package-build-record-gate.yaml .agents/notes/implemented/process/ 2>/dev/null; ls .agents/notes/implemented/process/ | grep 2026-08-22-desktop`
-Expected: the three files now appear under `implemented/process/`. (Adjust the sidecar filename to whatever Task 3 Step 3 produced if it differs from `.yaml`.)
+Run: `cd /Users/dingpc/workspace/deepseek-harness-desktop && git mv .agents/notes/proposed/process/2026-08-22-desktop-package-build-record-gate.md .agents/notes/implemented/process/ 2>/dev/null; git mv .agents/notes/proposed/process/2026-08-22-desktop-package-build-record-gate.zh.md .agents/notes/implemented/process/ 2>/dev/null; git mv .agents/notes/proposed/process/2026-08-22-desktop-package-build-record-gate.yaml .agents/notes/implemented/process/ 2>/dev/null; ls .agents/notes/implemented/process/ | grep 2026-08-22-desktop` Expected: the three files now appear under `implemented/process/`. (Adjust the sidecar filename to whatever Task 3 Step 3 produced if it differs from `.yaml`.)
 
 - [ ] **Step 2: Run the focused checks**
 
-Run: `cd /Users/dingpc/workspace/deepseek-harness-desktop && ./node_modules/.bin/vitest run apps/desktop/tests/verify-build-record.spec.ts && pnpm run verify-agent-note-format 2>&1 | tail -5`
-Expected: 3 tests pass; the note format gate is green.
+Run: `cd /Users/dingpc/workspace/deepseek-harness-desktop && ./node_modules/.bin/vitest run apps/desktop/tests/verify-build-record.spec.ts && pnpm run verify-agent-note-format 2>&1 | tail -5` Expected: 3 tests pass; the note format gate is green.
 
 - [ ] **Step 3: Commit**
 

@@ -18,10 +18,13 @@
       "path": "../ui-primitives"
     },
     {
-      "path": "../runtime"
+      "path": "../../api/workspace-controller/tsconfig.client.json"
     },
     {
       "path": "../ui-layout"
+    },
+    {
+      "path": "../ui-renderer"
     },
     {
       "path": "../locale"
@@ -31,6 +34,9 @@
     },
     {
       "path": "../../runtime-diagnostics/invariants"
+    },
+    {
+      "path": "../store"
     }
   ]
 }

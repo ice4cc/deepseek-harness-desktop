@@ -42,16 +42,40 @@ interface FileChangeStateEntry {
  * and the edit/write calls awaiting their result. Plain JSON per the unit
  * contract (persisted-cache precondition).
  */
-interface FileChangesState {
+export interface FileChangesState {
   files: Record<string, FileChangeStateEntry>
   order: string[]
-  pending: Record<string, { tool: 'edit' | 'write'; path: string; content?: string }>
+  pending: Record<string, { tool: 'edit' | 'write'; path: string; content?: string | undefined }>
+}
+
+declare module '@deepseek-ai/dsh-session-projection/types' {
+  interface SessionProjectionStateMap {
+    /** Host fold state behind the `fileChanges` client key. */
+    fileChanges: FileChangesState
+  }
 }
 
 const fileChangeDiffSchema = z.object({
   path: z.string(),
   oldText: z.string().nullable(),
   newText: z.string(),
+}).strict()
+
+/** Validates persisted fold state before it seeds a replay. */
+const fileChangesStateSchema: z.ZodType<FileChangesState> = z.object({
+  files: z.record(z.string(), z.object({
+    edits: z.number().int().nonnegative(),
+    added: z.number().int().nonnegative(),
+    removed: z.number().int().nonnegative(),
+    lastAt: z.number(),
+    lastDiff: z.array(fileChangeDiffSchema).nullable(),
+  }).strict()),
+  order: z.array(z.string()),
+  pending: z.record(z.string(), z.object({
+    tool: z.enum(['edit', 'write']),
+    path: z.string(),
+    content: z.string().optional(),
+  }).strict()),
 }).strict()
 
 const fileChangesSchema = z.object({
@@ -161,10 +185,10 @@ function parseMutationArgs(name: string, argumentsRaw: string): { tool: 'edit' |
 }
 
 /** The `fileChanges` unit registered on `ctx.sessionProjections` (exported for the unit spec). */
-export const fileChangesProjectionDefinition: ProjectionDefinition<'fileChanges', FileChangesState> = {
+export const fileChangesProjectionDefinition = {
   key: 'fileChanges',
-  schema: fileChangesSchema,
-  init: () => ({ files: {}, order: [], pending: {} }),
+  stateSchema: fileChangesStateSchema,
+  init: (): FileChangesState => ({ files: {}, order: [], pending: {} }),
   apply: (state, event) => {
     // Every uninteresting event returns the same reference (Object.is gates the change feed).
     switch (event.type) {
@@ -222,13 +246,16 @@ export const fileChangesProjectionDefinition: ProjectionDefinition<'fileChanges'
         return state
     }
   },
-  view: state => ({
-    files: [...state.order].reverse().flatMap((path) => {
-      const entry = state.files[path]
-      /* v8 ignore next -- apply keeps order and files in sync (adds and evictions hit both), so every listed path has an entry */
-      if (entry === undefined) return []
-      return [{ path, edits: entry.edits, added: entry.added, removed: entry.removed, lastAt: entry.lastAt, lastDiff: entry.lastDiff }]
+  wire: {
+    viewSchema: fileChangesSchema,
+    view: state => ({
+      files: [...state.order].reverse().flatMap((path) => {
+        const entry = state.files[path]
+        /* v8 ignore next -- apply keeps order and files in sync (adds and evictions hit both), so every listed path has an entry */
+        if (entry === undefined) return []
+        return [{ path, edits: entry.edits, added: entry.added, removed: entry.removed, lastAt: entry.lastAt, lastDiff: entry.lastDiff }]
+      }),
     }),
-  }),
+  },
   stateVersion: 1,
-}
+} satisfies ProjectionDefinition<'fileChanges', FileChangesState>

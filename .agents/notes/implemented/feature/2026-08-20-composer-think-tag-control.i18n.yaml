@@ -3,4 +3,4 @@
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-20-composer-think-tag-control.md
 2026-08-20-composer-think-tag-control.md: 701f08d0f33e7ab1dc199d42a643a3d136e40d6a
-2026-08-20-composer-think-tag-control.zh.md: 10540c07192f8076b161d119aa89acfe1905f74e
+2026-08-20-composer-think-tag-control.zh.md: d039b741b881d1b2f7b4da77fe40d25f6a792568

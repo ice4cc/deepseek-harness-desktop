@@ -1,6 +1,6 @@
 /** Published dsh web + pnpm dev:web → browser HMR, with no page reload. */
 
-import { existsSync, globSync } from 'node:fs'
+import { cpSync, existsSync, globSync, rmSync } from 'node:fs'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -77,6 +77,14 @@ it('hot-reloads a real client-plugin source edit without refreshing the page', a
   const clientBundlePaths = globSync('packages/*/*/lib/client.js{,.map}', { cwd: REPO_ROOT })
     .map(path => join(REPO_ROOT, path))
   const originalClientBundles = await Promise.all(clientBundlePaths.map(async path => [path, await readFile(path)] as const))
+  // dev:web's `vite build --watch` rewrites apps/web/dist with watch-mode bytes
+  // that differ from the one-shot build the client record digests, and its
+  // --no-emptyOutDir leaves both generations on disk. Snapshot dist so cleanup
+  // can restore the exact recorded state — a later suite (built-boot) fails if
+  // the digest no longer matches what is on disk.
+  const distDir = join(REPO_ROOT, 'apps', 'web', 'dist')
+  const distBackup = await mkdtemp(join(tmpdir(), 'dsh-web-hmr-dist-'))
+  cpSync(distDir, join(distBackup, 'dist'), { recursive: true })
   const originalSource = await readFile(sourcePath)
   const oldText = 'Into the Unknown'
   const sourceNeedle = "'hero.headline': 'Into the Unknown'"
@@ -114,7 +122,9 @@ it('hot-reloads a real client-plugin source edit without refreshing the page', a
     await page.goto(baseUrl, { waitUntil: 'load' })
     await page.getByText(oldText, { exact: true }).waitFor({ timeout: 15_000 })
     const pageIdentity = await page.evaluate(() => {
-      const identity = crypto.randomUUID()
+      // In-page code: an import would not survive serialization, and the page
+      // entropy source available in every context is getRandomValues.
+      const identity = Array.from(crypto.getRandomValues(new Uint8Array(8)), byte => byte.toString(16).padStart(2, '0')).join('')
       Object.defineProperty(window, '__dshHmrPageIdentity', { value: identity })
       return identity
     })
@@ -129,6 +139,10 @@ it('hot-reloads a real client-plugin source edit without refreshing the page', a
   } finally {
     await writeFile(sourcePath, originalSource).catch((error: unknown) => failures.push(error))
     if (watcher !== undefined) await stopTree(watcher).catch((error: unknown) => failures.push(error))
+    try {
+      rmSync(distDir, { recursive: true, force: true })
+      cpSync(join(distBackup, 'dist'), distDir, { recursive: true })
+    } catch (error: unknown) { failures.push(error) }
     await Promise.all(originalClientBundles.map(async ([path, content]) => {
       await writeFile(path, content).catch((error: unknown) => failures.push(error))
     }))
@@ -136,6 +150,7 @@ it('hot-reloads a real client-plugin source edit without refreshing the page', a
     await browser?.close().catch((error: unknown) => failures.push(error))
     await subprocessFiber?.dispose().catch((error: unknown) => failures.push(error))
     await rm(world, { recursive: true, force: true }).catch((error: unknown) => failures.push(error))
+    await rm(distBackup, { recursive: true, force: true }).catch((error: unknown) => failures.push(error))
   }
   if (failures.length > 0) throw new AggregateError(failures, 'HMR browser test or cleanup failed')
 }, 120_000)

@@ -14,7 +14,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
-import { CallId, createToolResultMessage } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, createToolResultMessage } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import * as FileChangesPlugin from '@deepseek-ai/dsh-file-changes'
@@ -75,12 +75,12 @@ describe('real Loader composition', () => {
     session.append('turn/start', { turn: 1 })
     session.append('step/start', { turn: 1, step: 1 })
     session.append('tool/call', {
-      turn: 1, step: 1, callId: CallId('c1'), name: 'write',
+      turn: 1, step: 1, callId: ToolCallId('c1'), name: 'write',
       arguments: JSON.stringify({ file_path: '/w/README.md', content: '# hello\n' }),
     })
     const result = session.append('tool/result', {
       turn: 1, step: 1,
-      message: createToolResultMessage({ callId: CallId('c1'), content: [{ type: 'text', text: 'ok' }], isError: false }),
+      message: createToolResultMessage({ callId: ToolCallId('c1'), content: [{ type: 'text', text: 'ok' }], isError: false }),
     }, { surfaceOp: 'append' })
     session.append('step/end', { turn: 1, step: 1 })
     session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })

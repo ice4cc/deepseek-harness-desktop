@@ -1,8 +1,8 @@
 /** Document panel slot registration into the docPanel column seat and its read/transition callbacks. */
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
-import { SlotRegistry } from '@deepseek-ai/dsh-client-runtime/client'
-import { DirectoryBrowseError, TextFileWriteError } from '@deepseek-ai/dsh-client-runtime/client'
+import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
+import { TextFileReadError, TextFileWriteError } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { apply, inject } from '@deepseek-ai/dsh-client-ui-doc-panel/client'
 import type { DocPanelInjected } from '@deepseek-ai/dsh-client-ui-doc-panel/client'
@@ -109,7 +109,7 @@ describe('ui-doc-panel apply', () => {
     const b = await bench()
     await b.ctx.plugin({ inject: [...inject], apply }).await()
     b.workspaces.readTextFile.mockRejectedValue(
-      new DirectoryBrowseError({ code: 'file-too-large', message: 'too big' } as never),
+      new TextFileReadError({ code: 'file-too-large', message: 'too big' } as never),
     )
     const entry = b.slots.entries('docPanel')[0]!
     const actions = { setTabContent: vi.fn(), setTabError: vi.fn() }

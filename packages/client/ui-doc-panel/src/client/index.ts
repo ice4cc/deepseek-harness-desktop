@@ -1,8 +1,11 @@
 /** Registers the document panel into the layout-owned docPanel column seat. */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-import { DirectoryBrowseError, TextFileWriteError } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context } from '@deepseek-ai/cordis'
+// Type-only: pulls the Workspace Controller's Context merge (ctx.workspaces).
+import type {} from '@deepseek-ai/dsh-api-workspace-controller/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
+// Type-only: pulls the renderer's Context merge (ctx.slots).
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 // Type-only: pulls ui-layout's Context merge (ctx.layout) for the panel actions.
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { BoundActions } from '@deepseek-ai/dsh-client-ui-slots'
@@ -28,10 +31,24 @@ const NS = 'docPanel'
 /** Services required by the document panel plugin. */
 export const inject = ['slots', 'workspaces', 'locale', 'layout']
 
+/**
+ * Wire failure code from a workspaces text-file rejection; a structured
+ * failure carries `{ rpcError: { code } }`, anything else is internal.
+ * @param error - the caught rejection value.
+ */
+function wireCode(error: unknown): string {
+  if (error !== null && typeof error === 'object' && 'rpcError' in error) {
+    const rpcError = error.rpcError
+    if (rpcError !== null && typeof rpcError === 'object' && 'code' in rpcError
+      && typeof rpcError.code === 'string') return rpcError.code
+  }
+  return 'internal'
+}
+
 /** Registers the panel entry and its read/transition callbacks.
  * @param ctx - Client root context.
  */
-export function apply(ctx: ClientContext): void {
+export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-doc-panel: dictionaries')
 
   const injectProps = (actions: BoundActions<ReturnType<typeof createDocPanelStore>>): DocPanelInjected => ({
@@ -45,7 +62,7 @@ export function apply(ctx: ClientContext): void {
         actions.setBaseline(path, content.version)
         return { ok: true as const, content: content.content, version: content.version }
       } catch (error: unknown) {
-        const code = error instanceof DirectoryBrowseError ? error.rpcError.code : 'internal'
+        const code = wireCode(error)
         actions.setTabError(path, code)
         return { ok: false as const, code }
       }
@@ -57,7 +74,7 @@ export function apply(ctx: ClientContext): void {
         const written = await ctx.workspaces.writeTextFile(path, content, expectedVersion)
         return { ok: true as const, version: written.version, size: written.size }
       } catch (error: unknown) {
-        const code = error instanceof TextFileWriteError ? error.rpcError.code : 'internal'
+        const code = wireCode(error)
         return { ok: false as const, code }
       }
     },

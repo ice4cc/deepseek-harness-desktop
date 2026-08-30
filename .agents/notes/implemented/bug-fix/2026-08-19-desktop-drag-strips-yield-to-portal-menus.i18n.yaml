@@ -3,4 +3,4 @@
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-19-desktop-drag-strips-yield-to-portal-menus.md
 2026-08-19-desktop-drag-strips-yield-to-portal-menus.md: 913bde163f105603626eae264b2aeb2d7dcf1edd
-2026-08-19-desktop-drag-strips-yield-to-portal-menus.zh.md: 09dfc94807c269e273aca9d905376bfc93343c83
+2026-08-19-desktop-drag-strips-yield-to-portal-menus.zh.md: 4aed7d83b87e6bb1291a7d1738258ced0ec976dc

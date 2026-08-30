@@ -23,6 +23,11 @@ export const zh = {
   'tab.discard.title': '未保存的更改',
   'tab.discard.body': '关闭该页签将丢弃尚未保存的更改。',
   'tab.discard.confirm': '丢弃并关闭',
+  'diff.files.one': '{count} 个文件',
+  'diff.files.other': '{count} 个文件',
+  'diff.collapseAria': '收起差异',
+  'diff.expandAria': '展开其余 {count} 行差异',
+  'diff.expandRest': '… 其余 {count} 行',
 } satisfies Record<string, string>
 
 /** The docPanel namespace key union. */
@@ -51,4 +56,9 @@ export const en = {
   'tab.discard.title': 'Unsaved changes',
   'tab.discard.body': 'Closing this tab discards changes that have not been saved.',
   'tab.discard.confirm': 'Discard and close',
+  'diff.files.one': '{count} file',
+  'diff.files.other': '{count} files',
+  'diff.collapseAria': 'Collapse diff',
+  'diff.expandAria': 'Expand {count} more diff lines',
+  'diff.expandRest': '… {count} more lines',
 } satisfies Record<DocPanelKey, string>

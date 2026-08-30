@@ -6,7 +6,7 @@ English | [中文](2026-08-29-doc-panel-codemirror-editor.zh.md)
 
 ## Problem
 
-The document panel's code view renders files through a hand-rolled line-oriented tokenizer (`packages/client/ui-doc-panel/src/client/render/highlight.ts`) that classifies source into five token runs (comment / string / keyword / number / plain). The result reads as crude next to the chat surface: function calls, attributes, and punctuation all render in the default color; there are no line numbers, code folding, in-file search, or active-line highlight. Highlighting is also whole-file and synchronous, so multi-megabyte files (lockfiles) stall the frame.
+The document panel's code view rendered files through a hand-rolled line-oriented tokenizer that classified source into five token runs (comment / string / keyword / number / plain) — the surface this change retires. The result reads as crude next to the chat surface: function calls, attributes, and punctuation all render in the default color; there are no line numbers, code folding, in-file search, or active-line highlight. Highlighting is also whole-file and synchronous, so multi-megabyte files (lockfiles) stall the frame.
 
 The product goal is an IDE-grade file-browsing experience in the document panel — the "open a file to read it" half of VS Code — plus in-place editing with safe conflict handling while the agent works on the same tree.
 
@@ -16,10 +16,10 @@ The document panel ([layout and tab model](2026-08-28-doc-panel-grid-column.md))
 
 ### Phase A — host write seam
 
-- Extend `TextFileContent` (`packages/host/apiproxy/src/api/host.ts`) with a `version` freshness token; the read path already stats for size, so the token rides along. Pre-release wire extension: no compatibility layer.
-- New `host.writeTextFile` RPC (`{ path, content, expectedVersion? }`) implemented in `api-proxy.ts` beside `readTextFile`. It writes node:fs directly (symmetric with the read path): a stat supplies the freshness baseline and proves the target is a regular file; a supplied `expectedVersion` that no longer matches reports `file-stale-version`, a missing or non-regular target reports `file-unwritable`, and omitting the guard is an unconditional overwrite (the conflict banner's "overwrite anyway" path). The version token (`dev:ino:size:mtimeMs:ctimeMs`) is opaque to the client — an echo-back guard, not a branded value.
-- New apiproxy `Config` field capping one write payload in bytes, symmetric with the read `file-too-large` bound.
-- Schemas (`host.schema.ts`), fetch client + handler rows, and a client-side `workspaces.writeTextFile()` beside `readTextFile` (`packages/client/runtime/src/client/workspaces/service.ts`).
+- Extend the workspace-controller text-file read value (`TextFileReadValue`, `packages/api/workspace-controller/src/types.ts`) with a `version` freshness token; the read path already stats for size, so the token rides along. Pre-release wire extension: no compatibility layer.
+- New `ctx.remote.workspace.writeTextFile` method (`{ path, content, expectedVersion? }`) implemented in `packages/api/workspace-controller/src/commands.ts` beside `readTextFile`. It writes node:fs directly (symmetric with the read path): a stat supplies the freshness baseline and proves the target is a regular file; a supplied `expectedVersion` that no longer matches reports `file-stale-version`, a missing or non-regular target reports `file-unwritable`, and omitting the guard is an unconditional overwrite (the conflict banner's "overwrite anyway" path). The version token (`dev:ino:size:mtimeMs:ctimeMs`) is opaque to the client — an echo-back guard, not a branded value.
+- New workspace-controller `Config` field capping one write payload in bytes (`maxWriteBytes`), symmetric with the read `file-too-large` bound (`maxTextBytes`).
+- The controller's `@Remote('readTextFile')` / `@Remote('writeTextFile')` methods in `packages/api/workspace-controller/src/index.ts`, and a client-side `workspaces.writeTextFile()` beside `readTextFile` (`packages/api/workspace-controller/src/client/service.ts`).
 
 ### Phase B — CodeMirror 6 read-only view
 
@@ -48,13 +48,13 @@ The document panel ([layout and tab model](2026-08-28-doc-panel-grid-column.md))
 - Conflict detection reuses the fs capability's version-guard semantics (a compare-and-swap on the stat-derived token) without a new conflict protocol; the host emits kebab-case RPC codes (`file-stale-version`, `file-unwritable`) to match the read path's domain, not a literal `FS_STALE_VERSION` symbol.
 - One palette: CodeMirror colors reference `--shiki-*` variables so chat and panel agree; no second color table.
 - No document text in the store per keystroke.
-- Write size cap added as an apiproxy `Config` field (symmetric with reads).
+- Write size cap added as a workspace-controller `Config` field (symmetric with reads).
 - Conflict overwrite is a direct write, no RiskConfirmation.
 
 ## Implementation seams
 
-- Host: `packages/host/apiproxy/src/api/host.ts` (`TextFileContent`, `HostApi`), `api/host.schema.ts`, `fetch/client.ts`, `fetch/handler.ts`, `api-proxy.ts` (implementation beside the existing `readTextFile` handler, and the Config field beside the read size bound), `index.ts` (config surface).
-- Runtime: `packages/client/runtime/src/client/workspaces/service.ts` (+ its contract face) for `writeTextFile`.
+- Host: `packages/api/workspace-controller/src/types.ts` (`TextFileReadValue`, `TextFileWriteRequest`, `TextFileWriteValue`), `src/commands.ts` (implementation beside the existing `readTextFile`, and the size bounds beside the read bound), `src/index.ts` (the `@Remote` methods and the `Config` surface).
+- Client: `packages/api/workspace-controller/src/client/service.ts` (+ its contract face) for `writeTextFile`.
 - Panel: `packages/client/ui-doc-panel/src/client/store.ts` (tab fields + actions), a new CodeEditor component under `src/client/`, `views.tsx` (mount it for code tabs), `DocPanelRoot.module.css` (drop `.tok*`), `render/highlight.ts` (deleted), `index.ts` (save inject prop), `locales.ts` (banner/copy strings).
 
 ## Alternatives considered

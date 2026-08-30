@@ -62,6 +62,7 @@ function mount(fixture: SessionsFixture) {
       collapsed={owner.collapsed}
       useStore={useStore} useSessions={useSessions as DocPanelRootComponentProps['useSessions']}
       useWorkspaces={() => { throw new Error('unused') }}
+      useSessionPendingInteraction={() => { throw new Error('unused') }}
       actions={engine.actions} readFile={readFile} saveFile={saveFile} openPanel={openPanel} closePanel={closePanel} t={t}
     />
   )

@@ -14,6 +14,8 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 // Type-only: merges the fileChanges key into SessionProjectionMap for the
 // useSessions projectionValues reads.
 import type {} from '@deepseek-ai/dsh-file-changes/client'
+// Type-only: pulls ui-session's GlobalStandardProps merge (useSessions).
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { createDocPanelStore } from '../store.ts'
 
 /** The result of a workspaces text read: decoded content + baseline, or the wire error code. */
