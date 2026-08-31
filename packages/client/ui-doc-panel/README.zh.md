@@ -55,7 +55,7 @@ Cmd/Ctrl+S 保存经 `workspaces.writeTextFile` 写入，带 `expectedVersion` �
 <details>
 <summary>实现内部 — 点击展开</summary>
 
-插件通过声明感知的 `slots.inject()` 注册 AppFrame 声明的 `docPanel` single slot（位于会话列与详情列之间的分栏）：只要活的 owner 声明了该 seat，它就安装；随插件 fiber 卸载。分栏几何——开合、宽度（320–720px，默认 480）、拖拽调宽、窄视口下自动收起的让步链——都在布局 store 里；面板经跨插件的 `ctx.layout` 面（`openDocPanel`／`closeDocPanel`）触发开合。分栏 body 在两种状态下都保持挂载：收起时轨道动画到零宽度并将其裁剪（body 在收起期间为 `inert`），portal 进框架 overlay 层的持久重开图标按钮隐藏；展开后 body 填满分栏，含头部（标题、自动跟随开关、收起控件）、页签栏与当前视图。
+插件通过声明感知的 `slots.inject()` 注册 AppFrame 声明的 `docPanel` single slot（位于会话列与详情列之间的分栏）：只要活的 owner 声明了该 seat，它就安装；随插件 fiber 卸载。分栏几何——开合、宽度（320–720px，默认 480）、拖拽调宽、窄视口下自动收起的让步链——都在布局 store 里；面板经跨插件的 `ctx.layout` 面（`openDocPanel`／`closeDocPanel`）触发开合。分栏 body 在两种状态下都保持挂载：收起时轨道动画到零宽度并将其裁剪（body 在收起期间为 `inert`），portal 进框架 overlay 层的单一角落开关保持原位、标签与动作随状态翻转；展开后 body 填满分栏，含标题栏条带、区域行（标题与自动跟随开关）、页签栏与当前视图。Windows 桌面壳下 `data-os` 规则把开关移到浮在同一右上角的原生最小化／最大化／关闭按钮左侧。
 
 store 是注册时声明的每 scope 独占工厂；组件经 `useStore` 读、经 `actions` 写。`/client` 导出只含插件主体（`apply`／`inject`）、约定类型与 store 工厂；DocPanelRoot、TabBar、ChangesTab、CodeEditor 与各渲染器保持在包内。
 

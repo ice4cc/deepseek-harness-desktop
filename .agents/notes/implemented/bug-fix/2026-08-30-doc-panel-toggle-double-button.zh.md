@@ -16,7 +16,7 @@ Status: implemented
 
 ## 决策
 
-- **一个 portal 化到框架 overlay 层的角落开关始终可见。** `DocPanelRoot` 在两种状态下都渲染同一个位于框架右上角的按钮；其标签和动作随列状态翻转（收起为 `panel.expand`/`openPanel`，展开为 `panel.collapse`/`closePanel`）。该节点永不卸载、永不移位，因此收起就是静止按钮之下的一次纯轨道动画——两个节点之间不存在交接，自然也就不存在需要针对过渡设闸的东西。
+- **一个 portal 化到框架 overlay 层的角落开关始终可见。** `DocPanelRoot` 在两种状态下都渲染同一个位于框架右上角的按钮；其标签和动作随列状态翻转（收起为 `panel.expand`/`openPanel`，展开为 `panel.collapse`/`closePanel`）。该节点永不卸载、永不移位，因此收起就是静止按钮之下的一次纯轨道动画——两个节点之间不存在交接，自然也就不存在需要针对过渡设闸的东西。Windows 桌面壳下由 `data-os` 规则把它移到浮在同一角落的原生最小化／最大化／关闭按钮（`titleBarOverlay`，每个约 46 px）左侧。
 - **文档面板收起时，会话头部让出框架右上角。** AppFrame 把 `docCollapsed` 作为 owner prop 传给 `conversation` 槽位；ConversationRoot 将其转发给 `conversation.session.header` 槽位；头部给 `.headerUtilities` 加 20 px 右外边距（合计距框架边缘 48 px——相对 right:12 px 加 28 px 宽的按钮区留 8 px 间隙）。
 - **收起主体在 inert 之外再加 aria-hidden。** 单独的 `inert` 只把它移出焦点和交互，移不出可访问性树；两个属性齐备后，收起主体对辅助技术不可见，而其绘制——以及裁剪它的轨道动画——照常进行。
 

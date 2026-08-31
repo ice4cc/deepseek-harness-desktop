@@ -39,6 +39,13 @@
   -webkit-app-region: no-drag;
 }
 
+/* Windows floats its native min/max/close caption buttons (titleBarOverlay,
+   ~46 px each) over the same band's right end — shift the toggle left of all
+   three so neither state paints under them. */
+:global(html[data-shell='desktop'][data-os='win32']) .cornerToggle {
+  right: 150px;
+}
+
 .panel {
   display: flex;
   flex-direction: column;
