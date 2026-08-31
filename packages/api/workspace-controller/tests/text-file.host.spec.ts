@@ -63,21 +63,21 @@ describe('WorkspaceController readTextFile', () => {
     const { controller } = await harness()
     for (const relative of ['', 'notes.txt', './notes.txt', '..']) {
       await expect(controller.readTextFile({ path: relative }, signal()))
-        .rejects.toMatchObject({ failure: { code: 'file-unreadable' } })
+        .rejects.toMatchObject({ code: 'file/unreadable' })
     }
   })
 
-  it('fails file-unreadable for a missing target or a directory', async () => {
+  it('fails file/unreadable for a missing target or a directory', async () => {
     const { controller, root } = await harness()
     const missing = join(root, 'no-such-file')
     await expect(controller.readTextFile({ path: missing }, signal()))
-      .rejects.toMatchObject({ failure: { code: 'file-unreadable', details: { path: missing } } })
+      .rejects.toMatchObject({ code: 'file/unreadable', details: { path: missing } })
     const dir = stageDir(root, 'not-a-file')
     await expect(controller.readTextFile({ path: dir }, signal()))
-      .rejects.toMatchObject({ failure: { code: 'file-unreadable' } })
+      .rejects.toMatchObject({ code: 'file/unreadable' })
   })
 
-  it('bounds one payload at maxTextBytes: over fails file-too-large, exactly at the bound reads', async () => {
+  it('bounds one payload at maxTextBytes: over fails file/too-large, exactly at the bound reads', async () => {
     const { controller, root } = await harness({ maxTextBytes: 10 })
     const target = join(root, 'sized.txt')
     writeFileSync(target, '0123456789') // exactly 10 bytes
@@ -85,7 +85,7 @@ describe('WorkspaceController readTextFile', () => {
       .toMatchObject({ content: '0123456789' })
     writeFileSync(target, '0123456789X') // 11 bytes: one over the bound
     await expect(controller.readTextFile({ path: target }, signal()))
-      .rejects.toMatchObject({ failure: { code: 'file-too-large', details: { path: target } } })
+      .rejects.toMatchObject({ code: 'file/too-large', details: { path: target } })
   })
 
   it('divides text from binary on a NUL within the leading 8 KiB', async () => {
@@ -93,7 +93,7 @@ describe('WorkspaceController readTextFile', () => {
     const nuly = join(root, 'nuly.bin')
     writeFileSync(nuly, Buffer.from([0x7f, 0x00, 0x41]))
     await expect(controller.readTextFile({ path: nuly }, signal()))
-      .rejects.toMatchObject({ failure: { code: 'binary-file', details: { path: nuly } } })
+      .rejects.toMatchObject({ code: 'file/binary', details: { path: nuly } })
     // A NUL just past the probe window does not make a file binary.
     const lateNul = join(root, 'late-nul.bin')
     writeFileSync(lateNul, Buffer.concat([Buffer.alloc(8192, 0x61), Buffer.from([0x00])]))
@@ -107,7 +107,7 @@ describe('WorkspaceController readTextFile', () => {
     const abort = new AbortController()
     abort.abort()
     await expect(controller.readTextFile({ path: join(root, 'notes.txt') }, abort.signal))
-      .rejects.toMatchObject({ failure: { code: 'cancelled' } })
+      .rejects.toMatchObject({ code: 'gateway/cancelled' })
   })
 })
 
@@ -139,7 +139,7 @@ describe('WorkspaceController writeTextFile', () => {
     await expect(controller.writeTextFile(
       { path: target, content: 'user-edit\n', expectedVersion: baseline.version },
       signal(),
-    )).rejects.toMatchObject({ failure: { code: 'file-stale-version', details: { path: target } } })
+    )).rejects.toMatchObject({ code: 'file/stale-version', details: { path: target } })
     // The guarded save did not clobber the external change.
     expect(readFileSync(target, 'utf8')).toBe('externally-changed-by-agent\n')
   })
@@ -150,22 +150,22 @@ describe('WorkspaceController writeTextFile', () => {
     await expect(controller.writeTextFile(
       { path: missing, content: 'x', expectedVersion: 'fx-v1' },
       signal(),
-    )).rejects.toMatchObject({ failure: { code: 'file-stale-version', details: { path: missing } } })
+    )).rejects.toMatchObject({ code: 'file/stale-version', details: { path: missing } })
 
     const dir = stageDir(root, 'a-directory')
     await expect(controller.writeTextFile({ path: dir, content: 'x' }, signal()))
-      .rejects.toMatchObject({ failure: { code: 'file-unwritable', details: { path: dir } } })
+      .rejects.toMatchObject({ code: 'file/unwritable', details: { path: dir } })
   })
 
-  it('refuses non-fully-qualified paths with file-unwritable instead of rebasing them under the cwd', async () => {
+  it('refuses non-fully-qualified paths with file/unwritable instead of rebasing them under the cwd', async () => {
     const { controller } = await harness()
     for (const relative of ['', 'notes.txt', './notes.txt', '..']) {
       await expect(controller.writeTextFile({ path: relative, content: 'x' }, signal()))
-        .rejects.toMatchObject({ failure: { code: 'file-unwritable' } })
+        .rejects.toMatchObject({ code: 'file/unwritable' })
     }
   })
 
-  it('bounds one payload at maxWriteBytes: over fails file-too-large, exactly at the bound writes', async () => {
+  it('bounds one payload at maxWriteBytes: over fails file/too-large, exactly at the bound writes', async () => {
     const { controller, root } = await harness({ maxWriteBytes: 10 })
     const target = join(root, 'sized.txt')
     writeFileSync(target, 'seed\n')
@@ -177,7 +177,7 @@ describe('WorkspaceController writeTextFile', () => {
     )).toMatchObject({ path: target })
     // One byte over the bound fails before any write.
     await expect(controller.writeTextFile({ path: target, content: '0123456789X' }, signal()))
-      .rejects.toMatchObject({ failure: { code: 'file-too-large', details: { path: target } } })
+      .rejects.toMatchObject({ code: 'file/too-large', details: { path: target } })
   })
 
   it('reports an aborted write as cancelled', async () => {
@@ -187,6 +187,6 @@ describe('WorkspaceController writeTextFile', () => {
     const abort = new AbortController()
     abort.abort()
     await expect(controller.writeTextFile({ path: target, content: 'x' }, abort.signal))
-      .rejects.toMatchObject({ failure: { code: 'cancelled' } })
+      .rejects.toMatchObject({ code: 'gateway/cancelled' })
   })
 })

@@ -37,7 +37,7 @@ export interface DocTab {
   dirty: boolean
   /** True while a save is in flight. */
   saving: boolean
-  /** Last save/freshness failure: a wire code (e.g. `file-unwritable`) or a conflict marker (`file-stale-version`, `external-change`). */
+  /** Last save/freshness failure: a wire code (e.g. `file/unwritable`) or a conflict marker (`file/stale-version`, `external-change`). */
   writeError?: string
 }
 

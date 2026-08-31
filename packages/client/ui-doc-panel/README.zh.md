@@ -45,7 +45,7 @@ Cmd/Ctrl+S 保存经 `workspaces.writeTextFile` 写入，带 `expectedVersion` �
 
 ### 自动跟随
 
-自动跟随（默认开启）在投影中出现严格更新的改动时打开页签并展开面板；切换会话会重建按路径的 `lastAt` 基线表，因此既有变更不会涌入页签栏。读取走 `workspaces.readTextFile`；失败以其 wire 码呈现（`file-unreadable`、`file-too-large`、`binary-file`）。
+自动跟随（默认开启）在投影中出现严格更新的改动时打开页签并展开面板；切换会话会重建按路径的 `lastAt` 基线表，因此既有变更不会涌入页签栏。读取走 `workspaces.readTextFile`；失败以其 wire 码呈现（`file/unreadable`、`file/too-large`、`file/binary`）。
 
 -----
 

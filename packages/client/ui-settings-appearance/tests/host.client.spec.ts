@@ -1,7 +1,7 @@
 /** Node half: the durable appearance section on a real settings provider. */
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it } from 'vitest'
-import { SettingsProvider, settingsNamespace, type SettingsNamespace } from '@deepseek-ai/dsh-settings'
+import { SettingsProvider, type SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import {
   APPEARANCE_SETTINGS_NAMESPACE, DEFAULT_CONTENT_WIDTH, apply,
 } from '../src/index.ts'
@@ -20,7 +20,7 @@ describe('ui-settings-appearance host', () => {
     await ctx.plugin(MemorySettings).await()
     const fiber = ctx.plugin({ apply })
     await fiber.await()
-    const ns = settingsNamespace(APPEARANCE_SETTINGS_NAMESPACE)
+    const ns = APPEARANCE_SETTINGS_NAMESPACE
     expect(ctx.settings.get(ns)).toEqual({ contentWidth: DEFAULT_CONTENT_WIDTH })
     await ctx.settings.update(ns, { contentWidth: 'wide' })
     expect(ctx.settings.get(ns)).toEqual({ contentWidth: 'wide' })

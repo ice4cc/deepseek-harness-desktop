@@ -33,7 +33,7 @@ interface CodeTabProps {
 
 /** A conflict marker (as opposed to a plain save failure). */
 function isConflict(code: string | undefined): boolean {
-  return code === 'file-stale-version' || code === 'external-change'
+  return code === 'file/stale-version' || code === 'external-change'
 }
 
 /** One editable code file (see module doc). */

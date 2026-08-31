@@ -130,7 +130,7 @@ describe('createDocPanelStore', () => {
   it('setTabContent lands bytes and clears loading and a prior error', () => {
     const { store, actions } = createDocPanelStore().create()
     actions.openTab('s1', '/a/one.md')
-    actions.setTabError('/a/one.md', 'file-unreadable')
+    actions.setTabError('/a/one.md', 'file/unreadable')
     actions.setTabContent('/a/one.md', '# hi\n')
     const tab = store.getSnapshot().tabs['/a/one.md']!
     expect(tab).toMatchObject({ content: '# hi\n', loading: false })
@@ -140,16 +140,16 @@ describe('createDocPanelStore', () => {
   it('setTabError lands the code and clears loading', () => {
     const { store, actions } = createDocPanelStore().create()
     actions.openTab('s1', '/a/one.md')
-    actions.setTabError('/a/one.md', 'file-too-large')
+    actions.setTabError('/a/one.md', 'file/too-large')
     const tab = store.getSnapshot().tabs['/a/one.md']!
-    expect(tab).toMatchObject({ error: 'file-too-large', loading: false })
+    expect(tab).toMatchObject({ error: 'file/too-large', loading: false })
     expect(tab.content).toBeUndefined()
   })
 
   it('read landers and markLoading no-op for paths without an open tab', () => {
     const { store, actions } = createDocPanelStore().create()
     actions.setTabContent('/ghost.md', 'x')
-    actions.setTabError('/ghost.md', 'file-unreadable')
+    actions.setTabError('/ghost.md', 'file/unreadable')
     actions.markLoading('/ghost.md', true)
     expect(store.getSnapshot().tabs).toEqual({})
 
@@ -211,7 +211,7 @@ describe('createDocPanelStore editing state machine', () => {
     actions.setBaseline('/a/x.ts', 'v1')
     actions.setDirty('/a/x.ts', true)
     actions.setSaving('/a/x.ts', true)
-    actions.saveFailed('/a/x.ts', 'file-stale-version')
+    actions.saveFailed('/a/x.ts', 'file/stale-version')
     actions.saveSucceeded('/a/x.ts', 'v2', 'let n = 2\n')
     const tab = store.getSnapshot().tabs['/a/x.ts']!
     expect(tab.version).toBe('v2')
@@ -224,9 +224,9 @@ describe('createDocPanelStore editing state machine', () => {
   it('saveFailed records the code and stops the saving flag', () => {
     const { store, actions } = opened('/a/x.ts')
     actions.setSaving('/a/x.ts', true)
-    actions.saveFailed('/a/x.ts', 'file-unwritable')
+    actions.saveFailed('/a/x.ts', 'file/unwritable')
     const tab = store.getSnapshot().tabs['/a/x.ts']!
-    expect(tab.writeError).toBe('file-unwritable')
+    expect(tab.writeError).toBe('file/unwritable')
     expect(tab.saving).toBe(false)
   })
 
@@ -245,7 +245,7 @@ describe('createDocPanelStore editing state machine', () => {
     const { store, actions } = opened('/a/x.ts')
     actions.setBaseline('/a/x.ts', 'v1')
     actions.setDirty('/a/x.ts', true)
-    actions.saveFailed('/a/x.ts', 'file-stale-version')
+    actions.saveFailed('/a/x.ts', 'file/stale-version')
     actions.clearWriteError('/a/x.ts')
     const tab = store.getSnapshot().tabs['/a/x.ts']!
     expect(tab.writeError).toBeUndefined()
@@ -259,7 +259,7 @@ describe('createDocPanelStore editing state machine', () => {
     actions.setBaseline('/ghost.ts', 'v9')
     actions.setDirty('/ghost.ts', true)
     actions.saveSucceeded('/ghost.ts', 'v9', 'x')
-    actions.saveFailed('/ghost.ts', 'file-unwritable')
+    actions.saveFailed('/ghost.ts', 'file/unwritable')
     actions.markExternalConflict('/ghost.ts')
     actions.clearWriteError('/ghost.ts')
     expect(Object.keys(store.getSnapshot().tabs)).toEqual(['/a/x.ts'])

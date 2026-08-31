@@ -16,8 +16,8 @@ const t = (key: string): string => (en as Record<string, string>)[key] ?? key
 // The save/freshness callbacks are irrelevant to these presentation asserts; a
 // stub keeps the code-tab render path (CodeTab) satisfiable.
 const controls: CodeTabControls = {
-  readFile: async () => ({ ok: false, code: 'file-unwritable' }),
-  saveFile: async () => ({ ok: false, code: 'file-unwritable' }),
+  readFile: async () => ({ ok: false, code: 'file/unwritable' }),
+  saveFile: async () => ({ ok: false, code: 'file/unwritable' }),
   setDirty: () => {},
   setSaving: () => {},
   saveSucceeded: () => {},
@@ -38,9 +38,9 @@ describe('DocView', () => {
   })
 
   it('shows the error state with the wire code when the read failed', () => {
-    render(<DocView tab={{ path: '/a/x.ts', title: 'x.ts', kind: 'code', loading: false, error: 'file-too-large', dirty: false, saving: false }} t={t} controls={controls} />)
+    render(<DocView tab={{ path: '/a/x.ts', title: 'x.ts', kind: 'code', loading: false, error: 'file/too-large', dirty: false, saving: false }} t={t} controls={controls} />)
     expect(screen.getByText(/Could not read this file/)).toBeTruthy()
-    expect(screen.getByText(/file-too-large/)).toBeTruthy()
+    expect(screen.getByText(/file\/too-large/)).toBeTruthy()
   })
 
   it('renders markdown by default and toggles to the raw source', () => {
@@ -103,7 +103,7 @@ describe('DocView', () => {
 
   it('shows the conflict banner with its actions when a save went stale', () => {
     const { container } = render(
-      <DocView tab={{ path: '/a/x.ts', title: 'x.ts', kind: 'code', language: 'ts', content: 'let n = 1', loading: false, dirty: true, saving: false, writeError: 'file-stale-version' }} t={t} controls={controls} />,
+      <DocView tab={{ path: '/a/x.ts', title: 'x.ts', kind: 'code', language: 'ts', content: 'let n = 1', loading: false, dirty: true, saving: false, writeError: 'file/stale-version' }} t={t} controls={controls} />,
     )
     expect(screen.getByText('This file was modified on disk')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Reload' })).toBeTruthy()
@@ -115,7 +115,7 @@ describe('DocView', () => {
 
   it('shows a plain save error (no banner) for a non-conflict failure', () => {
     render(
-      <DocView tab={{ path: '/a/x.ts', title: 'x.ts', kind: 'code', language: 'ts', content: 'let n = 1', loading: false, dirty: true, saving: false, writeError: 'file-unwritable' }} t={t} controls={controls} />,
+      <DocView tab={{ path: '/a/x.ts', title: 'x.ts', kind: 'code', language: 'ts', content: 'let n = 1', loading: false, dirty: true, saving: false, writeError: 'file/unwritable' }} t={t} controls={controls} />,
     )
     expect(screen.getByText(/Save failed/)).toBeTruthy()
     // No conflict banner for a hard failure.

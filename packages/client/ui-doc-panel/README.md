@@ -45,7 +45,7 @@ The Changes tab aggregates the current session's `fileChanges` projection ([dsh-
 
 ### Auto-follow
 
-Auto-follow (on by default) opens a tab and expands the panel when a strictly newer touch appears in the projection; switching sessions re-baselines the per-path `lastAt` map so pre-existing changes never flood the tab strip. Reads go through `workspaces.readTextFile`; failures surface as their wire code (`file-unreadable`, `file-too-large`, `binary-file`).
+Auto-follow (on by default) opens a tab and expands the panel when a strictly newer touch appears in the projection; switching sessions re-baselines the per-path `lastAt` map so pre-existing changes never flood the tab strip. Reads go through `workspaces.readTextFile`; failures surface as their wire code (`file/unreadable`, `file/too-large`, `file/binary`).
 
 -----
 

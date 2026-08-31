@@ -83,16 +83,16 @@ describe('ui-doc-panel apply', () => {
     expect(result).toEqual({ ok: true, version: 'v2', size: 9 })
   })
 
-  it('resolves a stale save as the file-stale-version code (not a throw)', async () => {
+  it('resolves a stale save as the file/stale-version code (not a throw)', async () => {
     const b = await bench()
     await b.ctx.plugin({ inject: [...inject], apply }).await()
     b.workspaces.writeTextFile.mockRejectedValue(
-      new TextFileWriteError({ code: 'file-stale-version', message: 'stale' } as never),
+      new TextFileWriteError({ code: 'file/stale-version', message: 'stale' } as never),
     )
     const entry = b.slots.entries('docPanel')[0]!
     const injected = (entry.inject as (actions: unknown) => DocPanelInjected)(null)
     const result = await injected.saveFile('/a/x.ts', 'let n = 1\n', 'v1')
-    expect(result).toEqual({ ok: false, code: 'file-stale-version' })
+    expect(result).toEqual({ ok: false, code: 'file/stale-version' })
   })
 
   it('resolves an unexpected save failure as the internal code', async () => {
@@ -109,13 +109,13 @@ describe('ui-doc-panel apply', () => {
     const b = await bench()
     await b.ctx.plugin({ inject: [...inject], apply }).await()
     b.workspaces.readTextFile.mockRejectedValue(
-      new TextFileReadError({ code: 'file-too-large', message: 'too big' } as never),
+      new TextFileReadError({ code: 'file/too-large', message: 'too big' } as never),
     )
     const entry = b.slots.entries('docPanel')[0]!
     const actions = { setTabContent: vi.fn(), setTabError: vi.fn() }
     const injected = (entry.inject as (actions: unknown) => DocPanelInjected)(actions)
     injected.readFile('/a/big.bin')
-    await vi.waitFor(() => { expect(actions.setTabError).toHaveBeenCalledWith('/a/big.bin', 'file-too-large') })
+    await vi.waitFor(() => { expect(actions.setTabError).toHaveBeenCalledWith('/a/big.bin', 'file/too-large') })
     expect(actions.setTabContent).not.toHaveBeenCalled()
   })
 

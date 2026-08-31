@@ -1,7 +1,7 @@
 /** Host registration for the appearance preference. */
 
 import type { Context } from '@deepseek-ai/cordis'
-import { settingsNamespace } from '@deepseek-ai/dsh-settings'
+import type {} from '@deepseek-ai/dsh-settings'
 import { APPEARANCE_SETTINGS_NAMESPACE, AppearanceSettingsSchema } from './appearance-settings.ts'
 
 export {
@@ -17,7 +17,7 @@ export { AppearanceSettingsSchema } from './appearance-settings.ts'
 export function apply(ctx: Context): void {
   ctx.inject(['settings'], (settingsCtx) => {
     settingsCtx.settings.register(
-      settingsNamespace(APPEARANCE_SETTINGS_NAMESPACE),
+      APPEARANCE_SETTINGS_NAMESPACE,
       AppearanceSettingsSchema,
     )
   })

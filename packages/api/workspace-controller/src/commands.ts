@@ -11,7 +11,7 @@ import {
   WorkspaceOrderInvalidError,
   WorkspaceUnknownSessionError,
 } from '@deepseek-ai/dsh-workspace'
-import { TypertRemoteFailure } from '@deepseek-ai/dsh-typert-protocol'
+import { RemoteError, remoteErrorOf } from '@deepseek-ai/dsh-typert-protocol'
 import { workspaceView } from './feed.ts'
 import type {
   TextFileReadRequest,
@@ -71,11 +71,12 @@ export class WorkspaceCommands {
         const workspace = await this.ctx.workspaceRegistry.create(request.path)
         return { workspace: workspaceView(workspace), created: true }
       } catch (error) {
-        if (error instanceof TypertRemoteFailure) throw error
-        throw failure(
-          'workspace-invalid-path',
+        if (remoteErrorOf(error) !== undefined) throw error
+        throw new RemoteError(
+          'workspace/invalid-path',
           `cannot create a Workspace at "${request.path}": ${errorMessage(error)}`,
           { path: request.path },
+          { cause: error },
         )
       }
     })
@@ -89,19 +90,15 @@ export class WorkspaceCommands {
   rename(request: WorkspaceRenameRequest): Promise<WorkspaceValue> {
     const title = request.title.trim()
     if (title === '') {
-      return Promise.reject(failure(
-        'bad-request',
-        'Workspace rename requires a non-blank title',
-        {},
-      ))
+      return Promise.reject(new RemoteError('gateway/bad-request', 'Workspace rename requires a non-blank title', {}))
     }
     return this.enqueue(async () => {
       const workspace = this.requireWorkspace(request.workspaceId)
       if (title !== workspace.title) {
         if (this.ctx.workspaceRegistry.list().some(candidate =>
           candidate.id !== workspace.id && candidate.title === title)) {
-          throw failure(
-            'workspace-name-conflict',
+          throw new RemoteError(
+            'workspace/name-conflict',
             `Workspace name '${title}' is already in use`,
             { name: title },
           )
@@ -157,8 +154,8 @@ export class WorkspaceCommands {
       await workspace.insertSessionBefore(request.sessionId, request.beforeSessionId)
     } catch (error) {
       if (!(error instanceof WorkspaceMoveInvalidError)) throw error
-      throw failure(
-        'workspace-move-invalid',
+      throw new RemoteError(
+        'workspace/move-invalid',
         error.message,
         {
           workspaceId: request.workspaceId,
@@ -167,6 +164,7 @@ export class WorkspaceCommands {
             ? {}
             : { beforeSessionId: request.beforeSessionId },
         },
+        { cause: error },
       )
     }
     return { workspace: workspaceView(workspace) }
@@ -182,7 +180,7 @@ export class WorkspaceCommands {
       await this.ctx.workspaceRegistry.archiveSession(request.sessionId)
     } catch (error) {
       if (!(error instanceof WorkspaceUnknownSessionError)) throw error
-      throw failure('session-not-found', error.message, { sessionId: request.sessionId })
+      throw new RemoteError('session/not-found', error.message, { sessionId: request.sessionId }, { cause: error })
     }
     return { archivedSessionIds: [...this.ctx.workspaceRegistry.archivedSessionIds] }
   }
@@ -200,7 +198,7 @@ export class WorkspaceCommands {
   async readTextFile(request: TextFileReadRequest, signal: AbortSignal): Promise<TextFileReadValue> {
     const path = request.path
     if (!fullyQualified(path)) {
-      throw failure('file-unreadable', `cannot read "${path}": not a fully qualified path`, { path })
+      throw new RemoteError('file/unreadable', `cannot read "${path}": not a fully qualified path`, { path })
     }
     const target = resolve(path)
     let info: Stats
@@ -210,12 +208,12 @@ export class WorkspaceCommands {
       throw textFileReadFailure(error, signal, target)
     }
     if (!info.isFile()) {
-      throw failure('file-unreadable', `${target} is not a regular file`, { path: target })
+      throw new RemoteError('file/unreadable', `${target} is not a regular file`, { path: target })
     }
     // The stat fact bounds the payload before any byte is read.
     if (info.size > this.config.maxTextBytes) {
-      throw failure(
-        'file-too-large',
+      throw new RemoteError(
+        'file/too-large',
         `${target} is ${info.size} bytes; the text bound is ${this.config.maxTextBytes}`,
         { path: target },
       )
@@ -229,7 +227,7 @@ export class WorkspaceCommands {
     // Text/binary divider: a NUL anywhere in the leading 8 KiB. Documents and
     // source never carry NUL; real binaries almost always do within the head.
     if (buffer.subarray(0, 8192).includes(0)) {
-      throw failure('binary-file', `${target} is not a text file`, { path: target })
+      throw new RemoteError('file/binary', `${target} is not a text file`, { path: target })
     }
     return { path: target, content: buffer.toString('utf8'), size: info.size, version: versionToken(info) }
   }
@@ -246,14 +244,14 @@ export class WorkspaceCommands {
   async writeTextFile(request: TextFileWriteRequest, signal: AbortSignal): Promise<TextFileWriteValue> {
     const path = request.path
     if (!fullyQualified(path)) {
-      throw failure('file-unwritable', `cannot write "${path}": not a fully qualified path`, { path })
+      throw new RemoteError('file/unwritable', `cannot write "${path}": not a fully qualified path`, { path })
     }
     const target = resolve(path)
     const content = request.content
     const byteLength = Buffer.byteLength(content, 'utf8')
     if (byteLength > this.config.maxWriteBytes) {
-      throw failure(
-        'file-too-large',
+      throw new RemoteError(
+        'file/too-large',
         `${target} would be ${byteLength} bytes; the write bound is ${this.config.maxWriteBytes}`,
         { path: target },
       )
@@ -267,29 +265,29 @@ export class WorkspaceCommands {
     try {
       info = await raceAbort(stat(target), signal)
     } catch (error) {
-      if (signal.aborted) throw failure('cancelled', 'file write was aborted', {})
+      if (signal.aborted) throw new RemoteError('gateway/cancelled', 'file write was aborted', {})
       if (expectedVersion !== undefined) {
-        throw failure('file-stale-version', `${target} changed since it was read`, { path: target })
+        throw new RemoteError('file/stale-version', `${target} changed since it was read`, { path: target })
       }
-      throw failure('file-unwritable', `cannot write ${target}: ${errorMessage(error)}`, { path: target })
+      throw new RemoteError('file/unwritable', `cannot write ${target}: ${errorMessage(error)}`, { path: target })
     }
     if (!info.isFile()) {
       // A directory (or other non-regular target): guarded reads stale, unguarded unwritable.
       if (expectedVersion !== undefined) {
-        throw failure('file-stale-version', `${target} changed since it was read`, { path: target })
+        throw new RemoteError('file/stale-version', `${target} changed since it was read`, { path: target })
       }
-      throw failure('file-unwritable', `${target} is not a regular file`, { path: target })
+      throw new RemoteError('file/unwritable', `${target} is not a regular file`, { path: target })
     }
     if (expectedVersion !== undefined && versionToken(info) !== expectedVersion) {
-      throw failure('file-stale-version', `${target} changed since it was read`, { path: target })
+      throw new RemoteError('file/stale-version', `${target} changed since it was read`, { path: target })
     }
     let after: Stats
     try {
       await raceAbort(writeFile(target, content, 'utf8'), signal)
       after = await stat(target)
     } catch (error) {
-      if (signal.aborted) throw failure('cancelled', 'file write was aborted', {})
-      throw failure('file-unwritable', `cannot write ${target}: ${errorMessage(error)}`, { path: target })
+      if (signal.aborted) throw new RemoteError('gateway/cancelled', 'file write was aborted', {})
+      throw new RemoteError('file/unwritable', `cannot write ${target}: ${errorMessage(error)}`, { path: target })
     }
     return { path: target, version: versionToken(after), size: after.size }
   }
@@ -307,26 +305,18 @@ export class WorkspaceCommands {
   }
 }
 
-function workspaceNotFound(workspaceId: WorkspaceId): TypertRemoteFailure {
-  return failure(
-    'workspace-not-found',
+function workspaceNotFound(workspaceId: WorkspaceId): RemoteError<'workspace/not-found'> {
+  return new RemoteError(
+    'workspace/not-found',
     `Workspace "${workspaceId}" not found`,
     { workspaceId },
   )
 }
 
-function failure(
-  code: string,
-  message: string,
-  details: object,
-): TypertRemoteFailure {
-  return new TypertRemoteFailure({ code, message, details })
-}
-
 /** Classify a text-file read rejection; an abort is the caller's own outcome. */
-function textFileReadFailure(error: unknown, signal: AbortSignal, target: string): TypertRemoteFailure {
-  if (signal.aborted) return failure('cancelled', 'file read was aborted', {})
-  return failure('file-unreadable', `cannot read ${target}: ${errorMessage(error)}`, { path: target })
+function textFileReadFailure(error: unknown, signal: AbortSignal, target: string): RemoteError {
+  if (signal.aborted) return new RemoteError('gateway/cancelled', 'file read was aborted', {})
+  return new RemoteError('file/unreadable', `cannot read ${target}: ${errorMessage(error)}`, { path: target })
 }
 
 /**
